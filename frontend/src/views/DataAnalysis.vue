@@ -23,10 +23,10 @@
         <el-card class="chart-card">
           <template #header>
             <div class="card-header">
-              <span>地理分布热力图</span>
+              <span>事故地点分布图</span> <!-- 修改标题 -->
             </div>
           </template>
-          <div ref="heatmapChart" class="chart-container"></div>
+          <div id="amap-container" class="chart-container"></div> <!-- 修改为地图容器 -->
         </el-card>
       </el-col>
 
@@ -76,17 +76,20 @@ import axios from 'axios'
 
 // 图表引用
 const trendChart = ref(null)
-const heatmapChart = ref(null)
+// const heatmapChart = ref(null) // 移除热力图引用
 const typeChart = ref(null)
 const weatherChart = ref(null)
 const roadChart = ref(null)
 
 // 图表实例
 let trendChartInstance = null
-let heatmapChartInstance = null
+// let heatmapChartInstance = null // 移除热力图实例
 let typeChartInstance = null
 let weatherChartInstance = null
 let roadChartInstance = null
+
+// 高德地图实例
+let map = null;
 
 // 时间范围选择
 const trendTimeRange = ref('month')
@@ -123,46 +126,69 @@ const initTrendChart = async () => {
   }
 }
 
-// 初始化热力图
-const initHeatmapChart = async () => {
-  try {
-    const response = await axios.get('/api/analysis/heatmap')
-    const { locations } = response.data
+// 初始化高德地图
+const initAMap = async () => {
+  // 确保 AMap 对象已加载
+  if (!window.AMap) {
+    ElMessage.error('高德地图SDK未加载，请检查index.html配置。');
+    return;
+  }
 
-    const option = {
-      visualMap: {
-        min: 0,
-        max: 100,
-        calculable: true,
-        inRange: {
-          color: ['#50a3ba', '#eac736', '#d94e5d']
-        }
-      },
-      geo: {
-        map: 'china',
-        roam: true,
-        emphasis: {
-          label: {
-            show: false
-          },
-          itemStyle: {
-            areaColor: '#51689b'
-          }
-        }
-      },
-      series: [{
-        name: '事故热力图',
-        type: 'heatmap',
-        coordinateSystem: 'geo',
-        data: locations
-      }]
+  map = new window.AMap.Map('amap-container', {
+    zoom: 11, // 初始缩放级别
+    center: [116.397428, 39.90923], // 初始中心点，例如北京天安门
+    viewMode: '3D' // 使用3D视图
+  });
+
+  try {
+    // 假设 /api/analysis/locations 返回事故地点的经纬度、天气和描述
+    // 例如：[{ longitude: 116.39, latitude: 39.9, weather: '晴', description: '轻微刮蹭' }]
+    const response = await axios.get('/api/analysis/locations'); // 新增或修改的API接口
+    const locations = response.data;
+
+    locations.forEach(item => {
+      const marker = new window.AMap.Marker({
+        position: [item.longitude, item.latitude],
+        map: map,
+        title: item.description || '事故地点'
+      });
+
+      // 添加信息窗体
+      const infoWindow = new window.AMap.InfoWindow({
+        content: `
+          <div>
+            <h3>事故地点</h3>
+            <p>经纬度: ${item.longitude}, ${item.latitude}</p>
+            <p>天气: ${item.weather || '未知'}</p>
+            <p>描述: ${item.description || '无'}</p>
+          </div>
+        `,
+        offset: new window.AMap.Pixel(0, -30) // 偏移量
+      });
+
+      // 鼠标点击标记点时显示信息窗体
+      marker.on('click', () => {
+        infoWindow.open(map, marker.getPosition());
+      });
+    });
+
+    // 如果有多个标记点，调整地图视野以包含所有标记点
+    if (locations.length > 0) {
+      const bounds = new window.AMap.Bounds();
+      locations.forEach(item => {
+        bounds.extend(new window.AMap.LngLat(item.longitude, item.latitude));
+      });
+      map.setFitView(null, false, [60, 60, 60, 60]); // 调整视野，留出边距
     }
 
-    heatmapChartInstance.setOption(option)
   } catch (error) {
-    ElMessage.error('获取热力图数据失败')
+    ElMessage.error('获取事故地点数据失败');
+    console.error('Error fetching map data:', error);
   }
-}
+};
+
+// 移除 ECharts 热力图初始化函数
+// const initHeatmapChart = async () => { /* ... */ }
 
 // 初始化类型分布图
 const initTypeChart = async () => {
@@ -277,14 +303,14 @@ watch(trendTimeRange, () => {
 onMounted(() => {
   // 创建图表实例
   trendChartInstance = echarts.init(trendChart.value)
-  heatmapChartInstance = echarts.init(heatmapChart.value)
+  // heatmapChartInstance = echarts.init(heatmapChart.value) // 移除热力图实例创建
   typeChartInstance = echarts.init(typeChart.value)
   weatherChartInstance = echarts.init(weatherChart.value)
   roadChartInstance = echarts.init(roadChart.value)
 
   // 加载数据
   initTrendChart()
-  initHeatmapChart()
+  initAMap() // 调用高德地图初始化函数
   initTypeChart()
   initWeatherChart()
   initRoadChart()
@@ -292,10 +318,13 @@ onMounted(() => {
   // 响应式调整
   window.addEventListener('resize', () => {
     trendChartInstance.resize()
-    heatmapChartInstance.resize()
+    // heatmapChartInstance.resize() // 移除热力图resize
     typeChartInstance.resize()
     weatherChartInstance.resize()
     roadChartInstance.resize()
+    if (map) { // 地图也需要响应式调整
+      map.checkResize();
+    }
   })
 })
 </script>
