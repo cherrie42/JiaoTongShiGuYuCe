@@ -1,22 +1,33 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>交通事故预测系统</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap">
+
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap"
+  />
   <style>
     body {
       margin: 0;
       font-family: 'Noto Sans SC', sans-serif;
     }
   </style>
+
+  <!-- 高德地图安全配置 -->
   <script type="text/javascript">
     window._AMapSecurityConfig = {
-      securityJsCode: '6659016f515d34d030f4bf02fd81ddfa', // 如果您启用了安全密钥，请填写
-    }
+      securityJsCode: '6659016f515d34d030f4bf02fd81ddfa',
+    };
   </script>
-  <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=79bb58e3344bcd57dfb6dc82c904fb36"></script>
+
+  <!-- 高德地图 JS API 主库 + 插件（天气、地理编码） -->
+  <script
+    type="text/javascript"
+    src="https://webapi.amap.com/maps?v=2.0&key=79bb58e3344bcd57dfb6dc82c904fb36&plugin=AMap.Weather,AMap.Geocoder"
+  ></script>
 </head>
 <body>
   <div id="app"></div>
