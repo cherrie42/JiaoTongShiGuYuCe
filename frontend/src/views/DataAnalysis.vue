@@ -23,10 +23,10 @@
         <el-card class="chart-card">
           <template #header>
             <div class="card-header">
-              <span>事故地点分布图</span> <!-- 修改标题 -->
+              <span>事故地点分布图</span>
             </div>
           </template>
-          <div id="amap-container" class="chart-container"></div> <!-- 修改为地图容器 -->
+          <div id="amap-container" class="chart-container"></div>
         </el-card>
       </el-col>
 
@@ -44,13 +44,55 @@
 
     <el-row :gutter="20" class="chart-row">
       <el-col :span="12">
-        <el-card class="chart-card">
-          <template #header>
-            <div class="card-header">
-              <span>天气影响分析</span>
-            </div>
-          </template>
-          <div ref="weatherChart" class="chart-container"></div>
+  <el-card class="chart-card">
+    <template #header>
+      <div class="card-header">
+        <span>实时天气预报</span>  <!-- 这里去掉了“（北京）” -->
+      </div>
+    </template>
+
+    <el-radio-group v-model="weatherView" size="small" style="margin-bottom: 15px;">
+      <el-radio-button label="current">当前天气</el-radio-button>
+      <el-radio-button label="forecast">未来三天天气</el-radio-button>
+    </el-radio-group>
+
+    <div v-if="weatherView === 'current'" class="weather-info">
+      <p><strong>当前城市：</strong>{{ currentCity }}</p>    <!-- 新增当前查询城市 -->
+      <p><strong>天气：</strong>{{ weatherInfo.weather }}</p>
+      <p><strong>温度：</strong>{{ weatherInfo.temperature }}℃</p>
+      <p><strong>风向：</strong>{{ weatherInfo.windDirection }}</p>
+      <p><strong>风力：</strong>{{ weatherInfo.windPower }}级</p>
+      <p><strong>湿度：</strong>{{ weatherInfo.humidity }}%</p>
+      <p><strong>报告时间：</strong>{{ weatherInfo.reportTime }}</p>
+    </div>
+
+    <div v-if="weatherView === 'forecast'">
+      <h4>{{ forecastCity }} 未来三天天气预报：</h4>
+      <div v-for="(item, index) in forecast" :key="index" class="forecast-item">
+        <p>
+          <strong>{{ item.date }}:</strong>
+          白天 {{ item.dayWeather }} ({{ item.dayTemp }}℃),
+          夜晚 {{ item.nightWeather }} ({{ item.nightTemp }}℃)
+        </p>
+      </div>
+    </div>
+
+          <!-- 删除了重复显示的天气内容，保留查询输入框和地图 -->
+          <div style="margin-top: 20px">
+            <el-input
+              v-model="searchLocation"
+              placeholder="输入地点查询天气"
+              size="small"
+              @keyup.enter.native="searchByKeyword"
+              style="margin-bottom: 10px"
+            >
+              <template #append>
+                <el-button @click="searchByKeyword" icon="el-icon-search" />
+              </template>
+            </el-input>
+
+            <div id="weather-map" style="width: 100%; height: 300px;"></div>
+          </div>
         </el-card>
       </el-col>
 
@@ -76,22 +118,110 @@ import axios from 'axios'
 
 // 图表引用
 const trendChart = ref(null)
-// const heatmapChart = ref(null) // 移除热力图引用
 const typeChart = ref(null)
-const weatherChart = ref(null)
 const roadChart = ref(null)
 
 // 图表实例
 let trendChartInstance = null
-// let heatmapChartInstance = null // 移除热力图实例
 let typeChartInstance = null
-let weatherChartInstance = null
 let roadChartInstance = null
 
 // 高德地图实例
-let map = null;
+let map = null
+let weatherMap = null
+let weatherMapMarker = null
 
-// 时间范围选择
+// 实时天气信息（显示用）
+const weatherInfo = ref({
+  weather: '',
+  temperature: '',
+  windDirection: '',
+  windPower: '',
+  humidity: '',
+  reportTime: ''
+})
+
+// 查询天气的输入与结果
+const searchLocation = ref('')
+const forecast = ref([])
+const forecastCity = ref('')
+
+// 天气视图类型：当前天气 current，未来三天 forecast
+const weatherView = ref('current')
+
+// 查询天气函数
+const fetchWeatherByCity = (cityName) => {
+  if (!window.AMap || !window.AMap.Weather) {
+    ElMessage.error('高德天气插件未加载')
+    return
+  }
+
+  const weatherPlugin = new window.AMap.Weather()
+
+  // 获取当前天气
+  weatherPlugin.getLive(cityName, (err, data) => {
+    if (!err) {
+      weatherInfo.value = {
+        weather: data.weather,
+        temperature: data.temperature,
+        windDirection: data.windDirection,
+        windPower: data.windPower,
+        humidity: data.humidity,
+        reportTime: data.reportTime
+      }
+      weatherView.value = 'current'
+    } else {
+      ElMessage.error('获取当前天气失败')
+    }
+  })
+
+  // 获取未来三天天气预报
+  weatherPlugin.getForecast(cityName, (err, data) => {
+    if (!err) {
+      forecast.value = data.forecasts.slice(0, 3).map(item => ({
+        date: item.date,
+        dayWeather: item.dayWeather,
+        nightWeather: item.nightWeather,
+        dayTemp: item.dayTemp,
+        nightTemp: item.nightTemp
+      }))
+      forecastCity.value = data.city || cityName
+    } else {
+      ElMessage.error('获取天气预报失败')
+    }
+  })
+}
+
+const searchByKeyword = () => {
+  if (!searchLocation.value) return
+
+  if (!window.AMap || !window.AMap.Geocoder) {
+    ElMessage.error('高德地图Geocoder未加载')
+    return
+  }
+
+  const geocoder = new window.AMap.Geocoder()
+
+  geocoder.getLocation(searchLocation.value, (status, result) => {
+    if (status === 'complete' && result.geocodes.length) {
+      const location = result.geocodes[0].location
+
+      if (weatherMapMarker) {
+        weatherMapMarker.setMap(null)
+      }
+
+      weatherMap.setCenter(location)
+      weatherMapMarker = new window.AMap.Marker({ position: location, map: weatherMap })
+
+      const city = result.geocodes[0].addressComponent.city || searchLocation.value
+      fetchWeatherByCity(city)
+    } else {
+      ElMessage.error('无法找到该地点')
+    }
+  })
+}
+
+// 时间范围
 const trendTimeRange = ref('month')
 
 // 初始化趋势图
@@ -101,23 +231,10 @@ const initTrendChart = async () => {
     const { dates, counts } = response.data
 
     const option = {
-      tooltip: {
-        trigger: 'axis'
-      },
-      xAxis: {
-        type: 'category',
-        data: dates
-      },
-      yAxis: {
-        type: 'value',
-        name: '事故数量'
-      },
-      series: [{
-        data: counts,
-        type: 'line',
-        smooth: true,
-        areaStyle: {}
-      }]
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: dates },
+      yAxis: { type: 'value', name: '事故数量' },
+      series: [{ data: counts, type: 'line', smooth: true, areaStyle: {} }]
     }
 
     trendChartInstance.setOption(option)
@@ -126,166 +243,88 @@ const initTrendChart = async () => {
   }
 }
 
-// 初始化高德地图
+// 初始化高德地图（事故地点）
 const initAMap = async () => {
-  // 确保 AMap 对象已加载
   if (!window.AMap) {
-    ElMessage.error('高德地图SDK未加载，请检查index.html配置。');
-    return;
+    ElMessage.error('高德地图SDK未加载，请检查 index.html')
+    return
   }
 
   map = new window.AMap.Map('amap-container', {
-    zoom: 11, // 初始缩放级别
-    center: [116.397428, 39.90923], // 初始中心点，例如北京天安门
-    viewMode: '3D' // 使用3D视图
-  });
+    zoom: 11,
+    center: [116.397428, 39.90923],
+    viewMode: '3D'
+  })
 
   try {
-    // 假设 /api/analysis/locations 返回事故地点的经纬度、天气和描述
-    // 例如：[{ longitude: 116.39, latitude: 39.9, weather: '晴', description: '轻微刮蹭' }]
-    const response = await axios.get('/api/analysis/locations'); // 新增或修改的API接口
-    const locations = response.data;
+    const response = await axios.get('/api/analysis/locations')
+    const locations = response.data
 
     locations.forEach(item => {
       const marker = new window.AMap.Marker({
         position: [item.longitude, item.latitude],
         map: map,
         title: item.description || '事故地点'
-      });
+      })
 
-      // 添加信息窗体
       const infoWindow = new window.AMap.InfoWindow({
         content: `
           <div>
             <h3>事故地点</h3>
             <p>经纬度: ${item.longitude}, ${item.latitude}</p>
-            <p>天气: ${item.weather || '未知'}</p>
             <p>描述: ${item.description || '无'}</p>
+            <p>时间: ${item.time || '未知'}</p>
           </div>
         `,
-        offset: new window.AMap.Pixel(0, -30) // 偏移量
-      });
+        offset: new window.AMap.Pixel(0, -30)
+      })
 
-      // 鼠标点击标记点时显示信息窗体
       marker.on('click', () => {
-        infoWindow.open(map, marker.getPosition());
-      });
-    });
-
-    // 如果有多个标记点，调整地图视野以包含所有标记点
-    if (locations.length > 0) {
-      const bounds = new window.AMap.Bounds();
-      locations.forEach(item => {
-        bounds.extend(new window.AMap.LngLat(item.longitude, item.latitude));
-      });
-      map.setFitView(null, false, [60, 60, 60, 60]); // 调整视野，留出边距
-    }
-
+        infoWindow.open(map, marker.getPosition())
+      })
+    })
   } catch (error) {
-    ElMessage.error('获取事故地点数据失败');
-    console.error('Error fetching map data:', error);
+    ElMessage.error('获取事故地点数据失败')
   }
-};
+}
 
-// 移除 ECharts 热力图初始化函数
-// const initHeatmapChart = async () => { /* ... */ }
-
-// 初始化类型分布图
+// 初始化事故类型图表
 const initTypeChart = async () => {
   try {
-    const response = await axios.get('/api/analysis/types')
+    const response = await axios.get('/api/analysis/type-distribution')
     const { types, counts } = response.data
 
     const option = {
-      tooltip: {
-        trigger: 'item'
-      },
-      legend: {
-        orient: 'vertical',
-        left: 'left'
-      },
+      tooltip: { trigger: 'item' },
+      legend: { top: 'bottom' },
       series: [{
         name: '事故类型',
         type: 'pie',
         radius: '50%',
-        data: types.map((type, index) => ({
-          value: counts[index],
-          name: type
-        })),
+        data: types.map((type, i) => ({ value: counts[i], name: type })),
         emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.5)'
-          }
+          itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.5)' }
         }
       }]
     }
 
     typeChartInstance.setOption(option)
   } catch (error) {
-    ElMessage.error('获取类型分布数据失败')
+    ElMessage.error('获取事故类型数据失败')
   }
 }
 
-// 初始化天气影响图
-const initWeatherChart = async () => {
-  try {
-    const response = await axios.get('/api/analysis/weather')
-    const { weather, counts } = response.data
-
-    const option = {
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: {
-          type: 'shadow'
-        }
-      },
-      xAxis: {
-        type: 'category',
-        data: weather
-      },
-      yAxis: {
-        type: 'value',
-        name: '事故数量'
-      },
-      series: [{
-        data: counts,
-        type: 'bar'
-      }]
-    }
-
-    weatherChartInstance.setOption(option)
-  } catch (error) {
-    ElMessage.error('获取天气影响数据失败')
-  }
-}
-
-// 初始化道路状况图
+// 初始化道路状况图表
 const initRoadChart = async () => {
   try {
-    const response = await axios.get('/api/analysis/road')
-    const { conditions, counts } = response.data
+    const response = await axios.get('/api/analysis/road-condition')
+    const { roads, accidentCounts } = response.data
 
     const option = {
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: {
-          type: 'shadow'
-        }
-      },
-      xAxis: {
-        type: 'category',
-        data: conditions
-      },
-      yAxis: {
-        type: 'value',
-        name: '事故数量'
-      },
-      series: [{
-        data: counts,
-        type: 'bar'
-      }]
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: roads },
+      yAxis: { type: 'value', name: '事故数' },
+      series: [{ data: accidentCounts, type: 'bar' }]
     }
 
     roadChartInstance.setOption(option)
@@ -294,57 +333,88 @@ const initRoadChart = async () => {
   }
 }
 
-// 监听时间范围变化
-watch(trendTimeRange, () => {
-  initTrendChart()
-})
-
-// 初始化所有图表
 onMounted(() => {
-  // 创建图表实例
+  // 初始化图表实例
   trendChartInstance = echarts.init(trendChart.value)
-  // heatmapChartInstance = echarts.init(heatmapChart.value) // 移除热力图实例创建
   typeChartInstance = echarts.init(typeChart.value)
-  weatherChartInstance = echarts.init(weatherChart.value)
   roadChartInstance = echarts.init(roadChart.value)
 
-  // 加载数据
   initTrendChart()
-  initAMap() // 调用高德地图初始化函数
+  initAMap()
   initTypeChart()
-  initWeatherChart()
   initRoadChart()
 
-  // 响应式调整
-  window.addEventListener('resize', () => {
-    trendChartInstance.resize()
-    // heatmapChartInstance.resize() // 移除热力图resize
-    typeChartInstance.resize()
-    weatherChartInstance.resize()
-    roadChartInstance.resize()
-    if (map) { // 地图也需要响应式调整
-      map.checkResize();
-    }
+  watch(trendTimeRange, () => {
+    initTrendChart()
   })
+
+  // 初始化天气，默认查询北京
+  fetchWeatherByCity('北京')
+
+  // 初始化天气地图
+  if (window.AMap) {
+    weatherMap = new window.AMap.Map('weather-map', {
+      zoom: 10,
+      center: [116.397428, 39.90923]
+    })
+
+    // 点击天气地图更新天气
+    weatherMap.on('click', e => {
+      const lnglat = e.lnglat
+      if (weatherMapMarker) weatherMapMarker.setMap(null)
+      weatherMapMarker = new window.AMap.Marker({
+        position: lnglat,
+        map: weatherMap
+      })
+
+      // 逆地理编码获取城市名
+      const geocoder = new window.AMap.Geocoder()
+      geocoder.getAddress(lnglat, (status, result) => {
+        if (status === 'complete' && result.regeocode) {
+          const city = result.regeocode.addressComponent.city || result.regeocode.addressComponent.province || ''
+          if (city) {
+            fetchWeatherByCity(city)
+          } else {
+            ElMessage.warning('无法确定点击位置的城市')
+          }
+        }
+      })
+    })
+  }
 })
 </script>
 
-<style lang="scss" scoped>
+<style scoped>
 .data-analysis {
-  .chart-row {
-    margin-top: 20px;
-  }
+  padding: 20px;
+}
 
-  .chart-card {
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+.chart-card {
+  min-height: 350px;
+}
 
-    .chart-container {
-      height: 400px;
-    }
-  }
+.chart-container {
+  width: 100%;
+  height: 300px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chart-row {
+  margin-top: 20px;
+}
+
+.weather-info {
+  font-size: 14px;
+  line-height: 24px;
+}
+
+.forecast-item {
+  border-bottom: 1px solid #eee;
+  padding: 5px 0;
 }
 </style>
