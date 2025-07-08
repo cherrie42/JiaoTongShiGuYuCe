@@ -9,10 +9,14 @@
             </div>
           </template>
 
-          <el-form :model="predictionForm" label-width="120px">
+          <!-- 高德地图 -->
+          <div id="map" style="width: 100%; height: 300px; margin-bottom: 20px;"></div>
+
+          <el-form :model="predictionForm" label-width="140px">
             <el-form-item label="地点">
-              <el-input v-model="predictionForm.location" placeholder="输入地点" />
+              <el-input v-model="predictionForm.location" placeholder="点击地图或输入地点" />
             </el-form-item>
+
             <el-form-item label="时间">
               <el-date-picker
                 v-model="predictionForm.datetime"
@@ -20,31 +24,40 @@
                 placeholder="选择日期时间"
               />
             </el-form-item>
-            <el-form-item label="天气条件">
-              <el-select v-model="predictionForm.weather" placeholder="选择天气条件">
-                <el-option label="晴" value="sunny" />
-                <el-option label="阴" value="cloudy" />
-                <el-option label="雨" value="rainy" />
-                <el-option label="雪" value="snowy" />
-                <el-option label="雾" value="foggy" />
+            
+            <el-form-item label="车型">
+              <el-select v-model="predictionForm.vehicle_type" placeholder="选择车型">
+                <el-option label="小型车" value="small" />
+                <el-option label="货车" value="truck" />
+                <el-option label="摩托车" value="motorcycle" />
               </el-select>
             </el-form-item>
-            <el-form-item label="道路状况">
-              <el-select v-model="predictionForm.roadCondition" placeholder="选择道路状况">
-                <el-option label="良好" value="good" />
-                <el-option label="潮湿" value="wet" />
-                <el-option label="结冰" value="icy" />
-                <el-option label="积雪" value="snowy" />
-                <el-option label="施工" value="construction" />
+
+            <el-form-item label="驾驶人年龄">
+              <el-input-number v-model="predictionForm.driver_age" :min="16" :max="100" />
+            </el-form-item>
+
+            <el-form-item label="驾龄（年）">
+              <el-input-number v-model="predictionForm.driver_experience" :min="0" :max="80" />
+            </el-form-item>
+
+            <el-form-item label="道路类型">
+              <el-select v-model="predictionForm.road_type" placeholder="选择道路类型">
+                <el-option label="国道" value="national" />
+                <el-option label="省道" value="provincial" />
+                <el-option label="县道" value="county" />
               </el-select>
             </el-form-item>
-            <el-form-item label="交通流量">
-              <el-select v-model="predictionForm.trafficFlow" placeholder="选择交通流量">
-                <el-option label="低" value="low" />
-                <el-option label="中" value="medium" />
-                <el-option label="高" value="high" />
+
+            <el-form-item label="路段结构">
+              <el-select v-model="predictionForm.road_structure" placeholder="选择路段结构">
+                <el-option label="直线段" value="straight" />
+                <el-option label="十字路口" value="cross" />
+                <el-option label="T型路口" value="T" />
+                <el-option label="环岛" value="roundabout" />
               </el-select>
             </el-form-item>
+
             <el-form-item>
               <el-button type="primary" @click="submitPrediction" :loading="loading">
                 开始预测
@@ -57,9 +70,7 @@
       <el-col :span="12">
         <el-card v-if="predictionResult" class="prediction-result">
           <template #header>
-            <div class="card-header">
-              <span>预测结果</span>
-            </div>
+            <div class="card-header"><span>预测结果</span></div>
           </template>
 
           <div class="result-content">
@@ -105,42 +116,118 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
 
 const loading = ref(false)
+
 const predictionForm = ref({
   location: '',
   datetime: '',
+  vehicle_type: '',
+  driver_age: '',
+  driver_experience: '',
+  road_type: '',
+  road_structure: '',
   weather: '',
-  roadCondition: '',
-  trafficFlow: ''
+  temperature: '',
+  humidity: '',
+  windspeed: '',
+  road_slippery: '',
+  crash_hour: '',
+  crash_day_of_week: '',
+  crash_month: '',
+  holiday_type: ''
 })
 
 const predictionResult = ref(null)
 
 const submitPrediction = async () => {
-  if (!validateForm()) {
-    ElMessage.warning('请填写完整的预测信息')
+  if (!predictionForm.value.location || !predictionForm.value.datetime) {
+    ElMessage.warning('请填写地点和时间')
     return
   }
 
   loading.value = true
   try {
+    await fetchWeather()
+    computeTimeInfo()
+    await fetchHolidayInfo()
+
     const response = await axios.post('/api/prediction', predictionForm.value)
     predictionResult.value = response.data
-    ElMessage.success('预测完成')
-  } catch (error) {
-    ElMessage.error('预测失败，请稍后重试')
+    ElMessage.success('预测成功')
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('预测失败')
   } finally {
     loading.value = false
   }
 }
 
-const validateForm = () => {
-  return Object.values(predictionForm.value).every(value => value !== '')
+// 调用高德天气接口
+const fetchWeather = async () => {
+  const key = '79bb58e3344bcd57dfb6dc82c904fb36'
+  const city = predictionForm.value.location
+  const url = `https://restapi.amap.com/v3/weather/weatherInfo?city=${encodeURIComponent(city)}&key=${key}&extensions=base`
+  const res = await axios.get(url)
+  if (res.data && res.data.lives?.[0]) {
+    const live = res.data.lives[0]
+    predictionForm.value.weather = live.weather
+    predictionForm.value.temperature = live.temperature
+    predictionForm.value.humidity = live.humidity
+    predictionForm.value.windspeed = live.windpower
+
+    const slipperyKeywords = ['雨', '雪', '雾']
+    predictionForm.value.road_slippery = slipperyKeywords.some(k => live.weather.includes(k)) ? '是' : '否'
+  }
 }
+
+const computeTimeInfo = () => {
+  const dt = new Date(predictionForm.value.datetime)
+  predictionForm.value.crash_hour = dt.getHours()
+  predictionForm.value.crash_day_of_week = dt.getDay()
+  predictionForm.value.crash_month = dt.getMonth() + 1
+}
+
+const fetchHolidayInfo = async () => {
+  const dateStr = new Date(predictionForm.value.datetime).toISOString().split('T')[0]
+  const res = await axios.get(`https://timor.tech/api/holiday/info/${dateStr}`)
+  predictionForm.value.holiday_type = res.data?.holiday?.name || '工作日'
+}
+
+// 地图相关
+let map = null
+let geocoder = null
+
+onMounted(() => {
+  map = new AMap.Map('map', {
+    zoom: 10,
+    center: [116.397428, 39.90923]
+  })
+
+  AMap.plugin('AMap.Geocoder', () => {
+    geocoder = new AMap.Geocoder()
+  })
+
+  map.on('click', (e) => {
+    const { lng, lat } = e.lnglat
+
+    if (geocoder) {
+      geocoder.getAddress([lng, lat], async (status, result) => {
+        if (status === 'complete' && result.regeocode) {
+          const city = result.regeocode.addressComponent.city || result.regeocode.addressComponent.province
+          predictionForm.value.location = city
+          await fetchWeather()
+          ElMessage.success(`已选择位置：${city}`)
+        } else {
+          ElMessage.error('定位失败')
+        }
+      })
+    }
+  })
+})
 
 const getRiskLevelType = (level) => {
   const types = {
@@ -157,7 +244,7 @@ const getTimelineItemType = (index) => {
 }
 </script>
 
-<style lang="scss" scoped>
+<style scoped lang="scss">
 .accident-prediction {
   .prediction-form {
     height: 100%;
@@ -170,13 +257,11 @@ const getTimelineItemType = (index) => {
       .risk-level {
         text-align: center;
         margin-bottom: 30px;
-
         .level-title {
           font-size: 1.2em;
           margin-bottom: 10px;
           color: #606266;
         }
-
         .el-tag {
           font-size: 1.5em;
           padding: 10px 20px;
@@ -186,7 +271,6 @@ const getTimelineItemType = (index) => {
       .risk-factors,
       .suggestions {
         margin-top: 20px;
-
         .factors-title,
         .suggestions-title {
           font-size: 1.1em;
