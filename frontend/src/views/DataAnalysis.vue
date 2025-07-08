@@ -116,6 +116,9 @@ import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import axios from 'axios'
 
+const currentCity = ref('')  // 当前天气城市
+
+
 // 图表引用
 const trendChart = ref(null)
 const typeChart = ref(null)
@@ -169,6 +172,7 @@ const fetchWeatherByCity = (cityName) => {
         humidity: data.humidity,
         reportTime: data.reportTime
       }
+      currentCity.value = data.city || cityName  // 设置当前城市名
       weatherView.value = 'current'
     } else {
       ElMessage.error('获取当前天气失败')
@@ -191,6 +195,7 @@ const fetchWeatherByCity = (cityName) => {
     }
   })
 }
+
 
 const searchByKeyword = () => {
   if (!searchLocation.value) return
