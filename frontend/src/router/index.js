@@ -13,7 +13,7 @@ const routes = [
   },
   {
     path: '/prediction',
-    name: 'prediction',
+    name: 'AccidentPrediction',
     component: () => import('@/views/AccidentPrediction.vue')
   },
   {
