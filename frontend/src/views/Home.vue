@@ -1,51 +1,27 @@
 <template>
   <div class="home">
-    <el-row :gutter="20">
-      <el-col :span="24">
-        <h1 class="welcome-title">交通事故预测系统</h1>
-        <p class="welcome-subtitle">基于机器学习的智能预测分析平台</p>
-      </el-col>
-    </el-row>
+    <div class="welcome-header">
+      <h1 class="welcome-title">交通事故预测系统</h1>
+      <p class="welcome-subtitle">基于机器学习的智能预测分析平台</p>
+    </div>
 
-    <el-row :gutter="20" class="feature-cards">
-      <el-col :span="8">
-        <el-card shadow="hover" @click="$router.push('/data')">
-          <template #header>
-            <div class="card-header">
-              <el-icon><DataLine /></el-icon>
-              <span>数据管理</span>
-            </div>
-          </template>
-          <div class="card-content">
-            管理历史事故数据，支持数据导入导出和编辑
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :span="8">
-        <el-card shadow="hover" @click="$router.push('/prediction')">
-          <template #header>
-            <div class="card-header">
-              <el-icon><TrendCharts /></el-icon>
-              <span>事故预测</span>
-            </div>
-          </template>
-          <div class="card-content">
-            基于机器学习的事故风险预测和分析
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :span="8">
-        <el-card shadow="hover" @click="$router.push('/analysis')">
-          <template #header>
-            <div class="card-header">
-              <el-icon><PieChart /></el-icon>
-              <span>数据分析</span>
-            </div>
-          </template>
-          <div class="card-content">
-            多维度数据分析和可视化展示
+    <el-row class="feature-cards" :gutter="20">
+      <el-col
+        v-for="card in cards"
+        :key="card.title"
+        :xs="24"
+        :sm="12"
+        :md="12"
+        :lg="12"
+        :xl="12"
+      >
+        <el-card class="feature-card" shadow="hover" @click="$router.push(card.path)">
+          <div class="card-body">
+            <el-icon :size="28" class="card-icon">
+              <component :is="card.icon" />
+            </el-icon>
+            <h3>{{ card.title }}</h3>
+            <p>{{ card.description }}</p>
           </div>
         </el-card>
       </el-col>
@@ -54,50 +30,105 @@
 </template>
 
 <script setup>
-import { DataLine, TrendCharts, PieChart } from '@element-plus/icons-vue'
+import { DataLine, TrendCharts, PieChart, Location } from '@element-plus/icons-vue'
+
+// 按照你指定的顺序：数据管理、路径规划、事故预测、数据分析
+const cards = [
+  {
+    title: '数据管理',
+    description: '管理历史事故数据，支持数据导入导出和编辑',
+    icon: DataLine,
+    path: '/data'
+  },
+  {
+    title: '路径规划',
+    description: '智能推荐路线并显示沿途天气和风险等级',
+    icon: Location,
+    path: '/route-planning'
+  },
+  {
+    title: '事故预测',
+    description: '基于机器学习的事故风险预测和分析',
+    icon: TrendCharts,
+    path: '/prediction'
+  },
+  {
+    title: '数据分析',
+    description: '多维度数据分析和可视化展示',
+    icon: PieChart,
+    path: '/analysis'
+  }
+]
 </script>
 
-<style lang="scss" scoped>
+<style scoped lang="scss">
 .home {
-  padding: 20px;
+  min-height: 100vh;
+  padding: 30px 40px;
+  background: #f5f7fa;
+  box-sizing: border-box;
 }
 
-.welcome-title {
+.welcome-header {
   text-align: center;
-  font-size: 2.5em;
-  color: #409EFF;
-  margin-bottom: 10px;
-}
-
-.welcome-subtitle {
-  text-align: center;
-  font-size: 1.2em;
-  color: #909399;
   margin-bottom: 40px;
-}
 
-.feature-cards {
-  margin-top: 20px;
-}
+  .welcome-title {
+    font-size: 2.4em;
+    color: #409eff;
+    margin-bottom: 10px;
+  }
 
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 1.2em;
-}
-
-.el-card {
-  cursor: pointer;
-  transition: transform 0.3s;
-
-  &:hover {
-    transform: translateY(-5px);
+  .welcome-subtitle {
+    font-size: 1.2em;
+    color: #666;
   }
 }
 
-.card-content {
-  color: #606266;
-  line-height: 1.5;
+.feature-cards {
+  width: 100%;
+}
+
+.feature-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  height: 100%;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  }
+
+  .card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+
+    .card-icon {
+      margin-bottom: 15px;
+      color: #409eff;
+      transition: transform 0.3s;
+
+      &:hover {
+        transform: rotate(10deg);
+      }
+    }
+
+    h3 {
+      font-size: 1.2em;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    p {
+      font-size: 0.95em;
+      color: #666;
+      line-height: 1.4;
+    }
+  }
 }
 </style>
