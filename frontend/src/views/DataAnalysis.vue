@@ -47,7 +47,7 @@
   <el-card class="chart-card">
     <template #header>
       <div class="card-header">
-        <span>实时天气预报</span>  <!-- 这里去掉了“（北京）” -->
+        <span>实时天气预报</span> 
       </div>
     </template>
 

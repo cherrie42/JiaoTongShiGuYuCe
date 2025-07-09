@@ -24,7 +24,24 @@
                 placeholder="选择日期时间"
               />
             </el-form-item>
-            
+
+            <!-- 新增：显示自动补全的天气信息 -->
+            <el-form-item label="天气">
+              <el-input v-model="predictionForm.weather" readonly />
+            </el-form-item>
+            <el-form-item label="温度(℃)">
+              <el-input v-model="predictionForm.temperature" readonly />
+            </el-form-item>
+            <el-form-item label="湿度(%)">
+              <el-input v-model="predictionForm.humidity" readonly />
+            </el-form-item>
+            <el-form-item label="风速(级)">
+              <el-input v-model="predictionForm.windspeed" readonly />
+            </el-form-item>
+            <el-form-item label="路面湿滑">
+              <el-input v-model="predictionForm.road_slippery" readonly />
+            </el-form-item>
+
             <el-form-item label="车型">
               <el-select v-model="predictionForm.vehicle_type" placeholder="选择车型">
                 <el-option label="小型车" value="small" />
@@ -116,7 +133,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
 
@@ -143,6 +160,127 @@ const predictionForm = ref({
 
 const predictionResult = ref(null)
 
+// 天气相关
+const weatherLoading = ref(false)
+const weatherInfo = ref({
+  weather: '',
+  temperature: '',
+  humidity: '',
+  windspeed: ''
+})
+
+// 高德地图和天气插件实例
+let map = null
+let geocoder = null
+let weatherPlugin = null
+
+onMounted(() => {
+  if (!window.AMap) {
+    ElMessage.error('高德地图SDK未加载')
+    return
+  }
+
+  map = new window.AMap.Map('map', {
+    zoom: 10,
+    center: [116.397428, 39.90923]
+  })
+
+  window.AMap.plugin(['AMap.Geocoder', 'AMap.Weather'], () => {
+    geocoder = new window.AMap.Geocoder()
+    weatherPlugin = new window.AMap.Weather()
+  })
+
+  map.on('click', (e) => {
+    const { lng, lat } = e.lnglat
+    if (geocoder) {
+      geocoder.getAddress([lng, lat], async (status, result) => {
+        if (status === 'complete' && result.regeocode) {
+          const city = result.regeocode.addressComponent.city || result.regeocode.addressComponent.province || ''
+          if (city) {
+            predictionForm.value.location = city
+            await fetchWeather(city)
+            ElMessage.success(`已选择位置：${city}`)
+          } else {
+            ElMessage.warning('无法获取城市信息')
+          }
+        } else {
+          ElMessage.error('定位失败')
+        }
+      })
+    }
+  })
+})
+
+// 监听地点变化，自动获取天气
+watch(() => predictionForm.value.location, async (newCity) => {
+  if (newCity) {
+    await fetchWeather(newCity)
+  } else {
+    clearWeather()
+  }
+})
+
+const fetchWeather = async (city) => {
+  if (!weatherPlugin) {
+    ElMessage.error('高德天气插件未加载')
+    return
+  }
+  weatherLoading.value = true
+  try {
+    // 获取实时天气
+    weatherPlugin.getLive(city, (err, data) => {
+      if (!err && data) {
+        weatherInfo.value.weather = data.weather
+        weatherInfo.value.temperature = data.temperature
+        weatherInfo.value.humidity = data.humidity
+        weatherInfo.value.windspeed = data.windPower
+
+        predictionForm.value.weather = data.weather
+        predictionForm.value.temperature = data.temperature
+        predictionForm.value.humidity = data.humidity
+        predictionForm.value.windspeed = data.windPower
+
+        const slipperyKeywords = ['雨', '雪', '雾']
+        predictionForm.value.road_slippery = slipperyKeywords.some(k => data.weather.includes(k)) ? '是' : '否'
+      } else {
+        ElMessage.warning('获取实时天气失败')
+        clearWeather()
+      }
+      weatherLoading.value = false
+    })
+  } catch (error) {
+    ElMessage.error('获取天气异常')
+    clearWeather()
+    weatherLoading.value = false
+  }
+}
+
+const clearWeather = () => {
+  weatherInfo.value = { weather: '', temperature: '', humidity: '', windspeed: '' }
+  predictionForm.value.weather = ''
+  predictionForm.value.temperature = ''
+  predictionForm.value.humidity = ''
+  predictionForm.value.windspeed = ''
+  predictionForm.value.road_slippery = ''
+}
+
+const computeTimeInfo = () => {
+  const dt = new Date(predictionForm.value.datetime)
+  predictionForm.value.crash_hour = dt.getHours()
+  predictionForm.value.crash_day_of_week = dt.getDay()
+  predictionForm.value.crash_month = dt.getMonth() + 1
+}
+
+const fetchHolidayInfo = async () => {
+  try {
+    const dateStr = new Date(predictionForm.value.datetime).toISOString().split('T')[0]
+    const res = await axios.get(`https://timor.tech/api/holiday/info/${dateStr}`)
+    predictionForm.value.holiday_type = res.data?.holiday?.name || '工作日'
+  } catch {
+    predictionForm.value.holiday_type = '工作日'
+  }
+}
+
 const submitPrediction = async () => {
   if (!predictionForm.value.location || !predictionForm.value.datetime) {
     ElMessage.warning('请填写地点和时间')
@@ -151,7 +289,6 @@ const submitPrediction = async () => {
 
   loading.value = true
   try {
-    await fetchWeather()
     computeTimeInfo()
     await fetchHolidayInfo()
 
@@ -165,69 +302,6 @@ const submitPrediction = async () => {
     loading.value = false
   }
 }
-
-// 调用高德天气接口
-const fetchWeather = async () => {
-  const key = '79bb58e3344bcd57dfb6dc82c904fb36'
-  const city = predictionForm.value.location
-  const url = `https://restapi.amap.com/v3/weather/weatherInfo?city=${encodeURIComponent(city)}&key=${key}&extensions=base`
-  const res = await axios.get(url)
-  if (res.data && res.data.lives?.[0]) {
-    const live = res.data.lives[0]
-    predictionForm.value.weather = live.weather
-    predictionForm.value.temperature = live.temperature
-    predictionForm.value.humidity = live.humidity
-    predictionForm.value.windspeed = live.windpower
-
-    const slipperyKeywords = ['雨', '雪', '雾']
-    predictionForm.value.road_slippery = slipperyKeywords.some(k => live.weather.includes(k)) ? '是' : '否'
-  }
-}
-
-const computeTimeInfo = () => {
-  const dt = new Date(predictionForm.value.datetime)
-  predictionForm.value.crash_hour = dt.getHours()
-  predictionForm.value.crash_day_of_week = dt.getDay()
-  predictionForm.value.crash_month = dt.getMonth() + 1
-}
-
-const fetchHolidayInfo = async () => {
-  const dateStr = new Date(predictionForm.value.datetime).toISOString().split('T')[0]
-  const res = await axios.get(`https://timor.tech/api/holiday/info/${dateStr}`)
-  predictionForm.value.holiday_type = res.data?.holiday?.name || '工作日'
-}
-
-// 地图相关
-let map = null
-let geocoder = null
-
-onMounted(() => {
-  map = new AMap.Map('map', {
-    zoom: 10,
-    center: [116.397428, 39.90923]
-  })
-
-  AMap.plugin('AMap.Geocoder', () => {
-    geocoder = new AMap.Geocoder()
-  })
-
-  map.on('click', (e) => {
-    const { lng, lat } = e.lnglat
-
-    if (geocoder) {
-      geocoder.getAddress([lng, lat], async (status, result) => {
-        if (status === 'complete' && result.regeocode) {
-          const city = result.regeocode.addressComponent.city || result.regeocode.addressComponent.province
-          predictionForm.value.location = city
-          await fetchWeather()
-          ElMessage.success(`已选择位置：${city}`)
-        } else {
-          ElMessage.error('定位失败')
-        }
-      })
-    }
-  })
-})
 
 const getRiskLevelType = (level) => {
   const types = {
