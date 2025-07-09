@@ -128,7 +128,7 @@ const route = useRoute()
   .right {
     .username {
       font-size: 14px;
-      color: #606266;
+      color: #000000;
     }
   }
 }
