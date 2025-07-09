@@ -18,6 +18,12 @@
           <el-icon><PieChart /></el-icon>
           数据分析
         </el-menu-item>
+
+        <!-- ✅ 新增“路线规划”模块 -->
+        <el-menu-item index="/route-planning">
+          <el-icon><Location /></el-icon>
+          路线规划
+        </el-menu-item>
       </el-menu>
     </el-header>
     <el-main>
@@ -27,7 +33,7 @@
 </template>
 
 <script setup>
-import { HomeFilled, DataLine, TrendCharts, PieChart } from '@element-plus/icons-vue'
+import { HomeFilled, DataLine, TrendCharts, PieChart, Location } from '@element-plus/icons-vue'
 </script>
 
 <style lang="scss" scoped>
