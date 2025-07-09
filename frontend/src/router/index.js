@@ -26,7 +26,7 @@ const routes = [
     name: 'routePlanning',
     component: () => import('@/views/RoutePlanning.vue'),
     meta: { title: '路线规划' }
-  }
+  },
 ]
 
 const router = createRouter({
