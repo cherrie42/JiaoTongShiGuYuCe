@@ -1,30 +1,5 @@
 <template>
   <div class="data-management">
-    <el-card class="operation-card">
-      <template #header>
-        <div class="card-header">
-          <span>数据操作</span>
-          <div class="header-buttons">
-            <el-upload
-              class="upload-demo"
-              action="/api/data/import"
-              :on-success="handleUploadSuccess"
-              :on-error="handleUploadError"
-            >
-              <el-button type="primary">
-                <el-icon><Upload /></el-icon>
-                导入数据
-              </el-button>
-            </el-upload>
-            <el-button type="success" @click="exportData">
-              <el-icon><Download /></el-icon>
-              导出数据
-            </el-button>
-          </div>
-        </div>
-      </template>
-    </el-card>
-
     <el-card class="table-card">
       <el-table
         v-loading="loading"
@@ -33,13 +8,19 @@
         border
       >
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="date" label="事故日期" width="120" />
-        <el-table-column prop="location" label="地点" width="180" />
-        <el-table-column prop="weather" label="天气条件" width="120" />
-        <el-table-column prop="roadCondition" label="道路状况" width="120" />
-        <el-table-column prop="accidentType" label="事故类型" width="120" />
-        <el-table-column prop="casualties" label="伤亡人数" width="100" />
-        <el-table-column prop="description" label="描述" />
+        <el-table-column prop="accident_points" label="地点" width="120" />
+        <el-table-column prop="crash_date" label="事故日期" width="180" />
+        <el-table-column prop="traffic_control_device" label="交通控制设备" width="150" />
+        <el-table-column prop="weather_condition" label="天气状况" width="120" />
+        <el-table-column prop="lighting_condition" label="照明状况" width="150" />
+        <el-table-column prop="trafficway_type" label="道路类型" width="180" />
+        <el-table-column prop="alignment" label="道路形态" width="150" />
+        <el-table-column prop="roadway_surface_cond" label="路面状况" width="120" />
+        <el-table-column prop="road_defect" label="道路缺陷" width="120" />
+        <el-table-column prop="intersection_related_i" label="是否路口相关" width="120" />
+        <el-table-column prop="crash_hour" label="事故小时" width="100" />
+        <el-table-column prop="crash_day_of_week" label="星期几" width="100" />
+        <el-table-column prop="crash_month" label="月份" width="100" />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="scope">
             <el-button
@@ -72,65 +53,70 @@
       </div>
     </el-card>
 
-    <!-- 编辑对话框 -->
     <el-dialog
       v-model="dialogVisible"
       title="编辑事故数据"
-      width="50%"
+      width="60%"
     >
-      <el-form :model="editForm" label-width="120px">
+      <el-form :model="editForm" label-width="140px">
+        <el-form-item label="地点">
+          <el-input v-model="editForm.accident_points" />
+        </el-form-item>
         <el-form-item label="事故日期">
           <el-date-picker
-            v-model="editForm.date"
-            type="date"
-            placeholder="选择日期"
+            v-model="editForm.crash_date"
+            type="datetime"
+            placeholder="选择日期和时间"
+            format="MM/dd/yyyy hh:mm:ss a"
+            value-format="MM/dd/yyyy hh:mm:ss a"
           />
         </el-form-item>
-        <el-form-item label="地点">
-          <el-input v-model="editForm.location" />
+        <el-form-item label="交通控制设备">
+          <el-input v-model="editForm.traffic_control_device" />
         </el-form-item>
-        <el-form-item label="天气条件">
-          <el-select v-model="editForm.weather" placeholder="选择天气条件">
-            <el-option label="晴" value="sunny" />
-            <el-option label="阴" value="cloudy" />
-            <el-option label="雨" value="rainy" />
-            <el-option label="雪" value="snowy" />
-            <el-option label="雾" value="foggy" />
+        <el-form-item label="天气状况">
+          <el-select v-model="editForm.weather_condition" placeholder="选择天气状况">
+            <el-option label="晴" value="SUN" />
+            <el-option label="阴" value="CLOUDY" />
+            <el-option label="雨" value="RAIN" />
+            <el-option label="雪" value="SNOW" />
+            <el-option label="雾" value="FOG" />
           </el-select>
         </el-form-item>
-        <el-form-item label="道路状况">
-          <el-select v-model="editForm.roadCondition" placeholder="选择道路状况">
-            <el-option label="良好" value="good" />
-            <el-option label="潮湿" value="wet" />
-            <el-option label="结冰" value="icy" />
-            <el-option label="积雪" value="snowy" />
-            <el-option label="施工" value="construction" />
+        <el-form-item label="照明状况">
+          <el-input v-model="editForm.lighting_condition" />
+        </el-form-item>
+        <el-form-item label="道路类型">
+          <el-input v-model="editForm.trafficway_type" />
+        </el-form-item>
+        <el-form-item label="道路形态">
+          <el-input v-model="editForm.alignment" />
+        </el-form-item>
+        <el-form-item label="路面状况">
+          <el-input v-model="editForm.roadway_surface_cond" />
+        </el-form-item>
+        <el-form-item label="道路缺陷">
+          <el-input v-model="editForm.road_defect" />
+        </el-form-item>
+        <el-form-item label="是否路口相关">
+          <el-select v-model="editForm.intersection_related_i" placeholder="选择">
+            <el-option label="是" value="Y" />
+            <el-option label="否" value="N" />
           </el-select>
         </el-form-item>
-        <el-form-item label="事故类型">
-          <el-select v-model="editForm.accidentType" placeholder="选择事故类型">
-            <el-option label="追尾" value="rear_end" />
-            <el-option label="侧翻" value="rollover" />
-            <el-option label="碰撞" value="collision" />
-            <el-option label="刮蹭" value="scratch" />
-          </el-select>
+        <el-form-item label="事故小时">
+          <el-input-number v-model="editForm.crash_hour" :min="0" :max="23" />
         </el-form-item>
-        <el-form-item label="伤亡人数">
-          <el-input-number v-model="editForm.casualties" :min="0" />
+        <el-form-item label="星期几">
+          <el-input-number v-model="editForm.crash_day_of_week" :min="1" :max="7" />
         </el-form-item>
-        <el-form-item label="描述">
-          <el-input
-            v-model="editForm.description"
-            type="textarea"
-            rows="3"
-          />
+        <el-form-item label="月份">
+          <el-input-number v-model="editForm.crash_month" :min="1" :max="12" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSave">保存</el-button>
-        </span>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSave">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -138,50 +124,37 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Upload, Download } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
-// 表格数据
 const tableData = ref([])
 const loading = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 
-// 编辑表单数据
 const dialogVisible = ref(false)
-const editForm = ref({
-  id: null,
-  date: '',
-  location: '',
-  weather: '',
-  roadCondition: '',
-  accidentType: '',
-  casualties: 0,
-  description: ''
-})
+const editForm = ref({})
 
-// 获取表格数据
 const fetchData = async () => {
   loading.value = true
   try {
-    const response = await axios.get('/api/accidents', {
+    const res = await axios.get('http://localhost:4000/api/accidents', {
       params: {
         page: currentPage.value - 1,
         size: pageSize.value
       }
     })
-    tableData.value = response.data.content
-    total.value = response.data.totalElements
+    tableData.value = res.data.content
+    total.value = res.data.totalElements
   } catch (error) {
+    console.error('请求失败:', error)
     ElMessage.error('获取数据失败')
   } finally {
     loading.value = false
   }
 }
 
-// 分页处理
 const handleSizeChange = (val) => {
   pageSize.value = val
   fetchData()
@@ -192,13 +165,11 @@ const handleCurrentChange = (val) => {
   fetchData()
 }
 
-// 编辑操作
 const handleEdit = (row) => {
   editForm.value = { ...row }
   dialogVisible.value = true
 }
 
-// 保存编辑
 const handleSave = async () => {
   try {
     if (editForm.value.id) {
@@ -214,7 +185,6 @@ const handleSave = async () => {
   }
 }
 
-// 删除操作
 const handleDelete = async (row) => {
   try {
     await ElMessageBox.confirm('确定要删除这条记录吗？', '提示', {
@@ -230,68 +200,15 @@ const handleDelete = async (row) => {
   }
 }
 
-// 文件上传处理
-const handleUploadSuccess = () => {
-  ElMessage.success('数据导入成功')
-  fetchData()
-}
-
-const handleUploadError = () => {
-  ElMessage.error('数据导入失败')
-}
-
-// 数据导出
-const exportData = async () => {
-  try {
-    const response = await axios.get('/api/accidents/export', {
-      responseType: 'blob'
-    })
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', '交通事故数据.xlsx')
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  } catch (error) {
-    ElMessage.error('导出失败')
-  }
-}
-
 onMounted(() => {
   fetchData()
 })
 </script>
 
-<style lang="scss" scoped>
-.data-management {
-  .operation-card {
-    margin-bottom: 20px;
-
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-
-      .header-buttons {
-        display: flex;
-        gap: 10px;
-      }
-    }
-  }
-
-  .table-card {
-    .pagination-container {
-      margin-top: 20px;
-      display: flex;
-      justify-content: flex-end;
-    }
-  }
-
-  .dialog-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-  }
+<style scoped>
+.pagination-container {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
 }
 </style>
