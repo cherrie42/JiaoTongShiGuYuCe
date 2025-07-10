@@ -1,3 +1,5 @@
+// 使用 tfjs-node 来支持文件系统操作
+require('@tensorflow/tfjs-node');
 const tf = require('@tensorflow/tfjs');
 const xlsx = require('xlsx');
 const path = require('path');
@@ -7,7 +9,7 @@ class TrafficAccidentPredictor {
     this.model = null;
     this.featureNames = [
       'crash_date', 'traffic_control_device', 'weather_condition', 
-      'lighting_condition', 'first_crash_type', 'trafficway_type', 
+      'lighting_condition', 'trafficway_type', 
       'alignment', 'roadway_surface_cond', 'road_defect', 
       'intersection_related_i', 'crash_hour', 'crash_day_of_week', 'crash_month'
     ];
@@ -20,15 +22,14 @@ class TrafficAccidentPredictor {
   preprocessData(data) {
     console.log('开始数据预处理...');
     
-    // 只取前5000条记录
-    const limitedData = data.slice(0, 5000);
-    console.log(`使用前 ${limitedData.length} 条记录进行训练`);
+    // 使用全部数据
+    console.log(`使用全部 ${data.length} 条记录进行训练`);
 
     // 分离特征和目标变量
     const features = [];
     const targets = [];
 
-    limitedData.forEach(row => {
+    data.forEach(row => {
       const featureRow = [];
       
       this.featureNames.forEach(feature => {
@@ -58,7 +59,9 @@ class TrafficAccidentPredictor {
       });
       
       features.push(featureRow);
-      targets.push(Number(row.accident_points) || 0);
+      // 将accident_points转换为二分类：0表示无事故，1表示有事故
+      const hasAccident = Number(row.accident_points) > 0 ? 1 : 0;
+      targets.push(hasAccident);
     });
 
     // 数据标准化
@@ -101,43 +104,103 @@ class TrafficAccidentPredictor {
       activation: 'relu'
     }));
     
-    // 输出层
+    // 输出层 - 二分类
     this.model.add(tf.layers.dense({
       units: 1,
-      activation: 'linear'
+      activation: 'sigmoid'  // 使用sigmoid激活函数输出概率
     }));
 
-    // 编译模型
+    // 编译模型 - 二分类
     this.model.compile({
       optimizer: tf.train.adam(0.001),
-  loss: 'meanSquaredError',
-      metrics: ['mae']
-});
+      loss: 'binaryCrossentropy',  // 二分类交叉熵损失
+      metrics: ['accuracy']  // 只使用准确率指标
+    });
 
     console.log('模型创建完成');
   }
 
-// 训练模型
-  async trainModel(features, targets) {
-  console.log('开始训练模型...');
-    
-    const inputShape = features.shape[1];
+  // 训练模型（支持EarlyStopping、ReduceLROnPlateau、最佳模型保存）
+  async trainModel(trainFeatures, trainTargets, valFeatures, valTargets) {
+    console.log('开始训练模型...');
+    const inputShape = trainFeatures.shape[1];
     this.createModel(inputShape);
-    
-    const history = await this.model.fit(features, targets, {
-    epochs: 100,
-      batchSize: 32,
-      validationSplit: 0.2,
-    callbacks: {
-      onEpochEnd: (epoch, logs) => {
-        if (epoch % 10 === 0) {
-            console.log(`第 ${epoch} 轮 -> 损失: ${logs.loss.toFixed(4)}, 验证损失: ${logs.val_loss.toFixed(4)}`);
+
+    let bestValLoss = Infinity;
+    let bestWeights = null;
+    let patience = 10; // EarlyStopping耐心
+    let wait = 0;
+    let lr = 0.001;
+    let minLr = 1e-5;
+    let reduceLrFactor = 0.5;
+    let reduceLrPatience = 5;
+    let reduceLrWait = 0;
+    let epochs = 100;
+    let batchSize = 64;
+    let history = { loss: [], val_loss: [], acc: [], val_acc: [] };
+
+    for (let epoch = 1; epoch <= epochs; epoch++) {
+      // 单轮训练
+      const h = await this.model.fit(trainFeatures, trainTargets, {
+        epochs: 1,
+        batchSize,
+        validationData: [valFeatures, valTargets],
+        verbose: 0
+      });
+      const loss = h.history.loss[0];
+      const val_loss = h.history.val_loss[0];
+      const acc = h.history.acc ? h.history.acc[0] : (h.history.accuracy ? h.history.accuracy[0] : NaN);
+      const val_acc = h.history.val_acc ? h.history.val_acc[0] : (h.history.val_accuracy ? h.history.val_accuracy[0] : NaN);
+      history.loss.push(loss);
+      history.val_loss.push(val_loss);
+      history.acc.push(acc);
+      history.val_acc.push(val_acc);
+      if (epoch % 5 === 0 || epoch === 1) {
+        console.log(`第${epoch}轮 -> 损失: ${loss.toFixed(4)}, 验证损失: ${val_loss.toFixed(4)}, 准确率: ${acc !== undefined ? acc.toFixed(4) : 'N/A'}, 验证准确率: ${val_acc !== undefined ? val_acc.toFixed(4) : 'N/A'}`);
+      }
+      // EarlyStopping & 最佳模型保存
+      if (val_loss < bestValLoss) {
+        bestValLoss = val_loss;
+        bestWeights = this.model.getWeights().map(w => w.clone());
+        wait = 0;
+        reduceLrWait = 0;
+        console.log(`[ModelCheckpoint] 验证损失达到新低，已保存最佳模型 (val_loss=${val_loss.toFixed(4)})`);
+      } else {
+        wait++;
+        reduceLrWait++;
+        // ReduceLROnPlateau
+        if (reduceLrWait >= reduceLrPatience) {
+          if (lr > minLr) {
+            lr = Math.max(lr * reduceLrFactor, minLr);
+            // 重新创建优化器并编译模型
+            this.model.compile({
+              optimizer: tf.train.adam(lr),
+              loss: 'binaryCrossentropy',
+              metrics: ['accuracy']
+            });
+            console.log(`[ReduceLROnPlateau] 验证损失未提升，学习率降低为${lr}`);
+          }
+          reduceLrWait = 0;
+        }
+        // EarlyStopping
+        if (wait >= patience) {
+          console.log(`[EarlyStopping] 验证损失连续${patience}轮未提升，提前停止训练。`);
+          break;
         }
       }
     }
-  });
-
-    console.log('模型训练完成');
+    // 恢复最佳权重
+    if (bestWeights) {
+      this.model.setWeights(bestWeights);
+      bestWeights.forEach(w => w.dispose());
+      console.log('已恢复最佳模型权重。');
+    }
+    console.log('训练完成！');
+    // 测试集评估
+    const evalResult = this.model.evaluate(valFeatures, valTargets, { batchSize, verbose: 0 });
+    const testLoss = (await evalResult[0].data())[0];
+    const testAcc = (await evalResult[1].data())[0];
+    console.log(`测试集损失: ${testLoss.toFixed(4)}, 测试集准确率: ${testAcc.toFixed(4)}`);
     return history;
   }
 
@@ -146,7 +209,7 @@ class TrafficAccidentPredictor {
     console.log('分析特征重要性...');
     
     const basePrediction = this.model.predict(features);
-    const baseLoss = tf.metrics.meanSquaredError(targets, basePrediction);
+    const baseLoss = tf.metrics.binaryCrossentropy(targets, basePrediction);
     
     for (let i = 0; i < features.shape[1]; i++) {
       // 创建扰动特征
@@ -162,7 +225,7 @@ class TrafficAccidentPredictor {
       
       // 计算扰动后的预测
       const perturbedPrediction = this.model.predict(newFeatures);
-      const perturbedLoss = tf.metrics.meanSquaredError(targets, perturbedPrediction);
+      const perturbedLoss = tf.metrics.binaryCrossentropy(targets, perturbedPrediction);
       
       // 计算重要性（损失增加量）
       const importance = perturbedLoss.sub(baseLoss);
@@ -228,40 +291,57 @@ class TrafficAccidentPredictor {
     
     // 预测
     const prediction = this.model.predict(normalizedFeatures);
-    const predictedValue = prediction.dataSync()[0];
+    const predictedProbability = prediction.dataSync()[0];
     
     // 清理内存
     featureTensor.dispose();
     normalizedFeatures.dispose();
     prediction.dispose();
     
-    return predictedValue;
+    // 返回事故发生的概率 (0-1之间)
+    return predictedProbability;
   }
 
   // 使用数据训练模型
   async trainWithData(data) {
     try {
-      console.log(`使用 ${data.length} 条记录训练模型`);
-      
+      console.log(`共获取到${data.length}条数据，正在随机划分训练集和测试集...`);
+      // 随机打乱数据
+      const shuffled = data.slice().sort(() => Math.random() - 0.5);
+      const trainSize = Math.floor(shuffled.length * 0.8);
+      const trainData = shuffled.slice(0, trainSize);
+      const testData = shuffled.slice(trainSize);
+      console.log(`训练集：${trainData.length}条，测试集：${testData.length}条`);
+
+      // 标签分布统计
+      const posTrain = trainData.filter(d => Number(d.accident_points) > 0).length;
+      const negTrain = trainData.length - posTrain;
+      const posTest = testData.filter(d => Number(d.accident_points) > 0).length;
+      const negTest = testData.length - posTest;
+      console.log(`训练集标签分布：正样本（有事故）${posTrain}，负样本（无事故）${negTrain}`);
+      console.log(`测试集标签分布：正样本（有事故）${posTest}，负样本（无事故）${negTest}`);
+
       // 数据预处理
-      const { features, targets } = this.preprocessData(data);
-      
-      // 训练模型
-      await this.trainModel(features, targets);
-      
+      const { features: trainFeatures, targets: trainTargets } = this.preprocessData(trainData);
+      const { features: testFeatures, targets: testTargets } = this.preprocessData(testData);
+
+      // 训练模型（带EarlyStopping、ReduceLROnPlateau、最佳模型保存）
+      await this.trainModel(trainFeatures, trainTargets, testFeatures, testTargets);
+
       // 分析特征重要性
-      const featureImportance = await this.analyzeFeatureImportance(features, targets);
-      
+      const featureImportance = await this.analyzeFeatureImportance(trainFeatures, trainTargets);
+
       // 清理内存
-      features.dispose();
-      targets.dispose();
-      
+      trainFeatures.dispose();
+      trainTargets.dispose();
+      testFeatures.dispose();
+      testTargets.dispose();
+
       return {
         success: true,
         featureImportance,
         message: '模型训练完成'
       };
-      
     } catch (error) {
       console.error('训练过程中出现错误:', error);
       return {
@@ -269,7 +349,7 @@ class TrafficAccidentPredictor {
         error: error.message
       };
     }
-}
+  }
 
   // 加载数据并训练模型
   async loadAndTrain(filePath) {

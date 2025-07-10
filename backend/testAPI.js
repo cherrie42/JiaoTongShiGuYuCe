@@ -23,7 +23,6 @@ async function testAPI() {
       traffic_control_device: 'Traffic Signal',
       weather_condition: 'Clear',
       lighting_condition: 'Daylight',
-      first_crash_type: 'Rear End',
       trafficway_type: 'Two-Way, Not Divided',
       alignment: 'Straight',
       roadway_surface_cond: 'Dry',
@@ -37,17 +36,21 @@ async function testAPI() {
     const predictionResponse = await axios.post(`${BASE_URL}/predict`, testData);
     console.log('✅ 预测结果:', predictionResponse.data);
     
+    // 显示得分和风险等级
+    const { probability, risk_level } = predictionResponse.data;
+    console.log(`  模型得分: ${probability}`);
+    console.log(`  风险等级: ${risk_level}`);
+    
     // 4. 测试多个预测案例
     console.log('\n📊 测试多个预测案例...');
     const testCases = [
       {
-        name: '晴天白天追尾事故',
+        name: '晴天白天低风险场景',
         data: {
           crash_date: '2023-01-15',
           traffic_control_device: 'Traffic Signal',
           weather_condition: 'Clear',
           lighting_condition: 'Daylight',
-          first_crash_type: 'Rear End',
           trafficway_type: 'Two-Way, Not Divided',
           alignment: 'Straight',
           roadway_surface_cond: 'Dry',
@@ -59,13 +62,12 @@ async function testAPI() {
         }
       },
       {
-        name: '雨天夜间角度碰撞',
+        name: '雨天夜间中风险场景',
         data: {
           crash_date: '2023-06-20',
           traffic_control_device: 'Stop Sign',
           weather_condition: 'Rain',
           lighting_condition: 'Dark - Street Lights On',
-          first_crash_type: 'Angle',
           trafficway_type: 'Two-Way, Not Divided',
           alignment: 'Curve',
           roadway_surface_cond: 'Wet',
@@ -77,13 +79,12 @@ async function testAPI() {
         }
       },
       {
-        name: '雪天夜间侧滑事故',
+        name: '雪天夜间高风险场景',
         data: {
           crash_date: '2023-12-10',
           traffic_control_device: 'No Control',
           weather_condition: 'Snow',
           lighting_condition: 'Dark - No Street Lights',
-          first_crash_type: 'Sideswipe',
           trafficway_type: 'One-Way',
           alignment: 'Straight',
           roadway_surface_cond: 'Snow/Slush',
@@ -100,22 +101,26 @@ async function testAPI() {
       console.log(`\n📊 测试案例: ${testCase.name}`);
       console.log(`  天气: ${testCase.data.weather_condition}`);
       console.log(`  照明: ${testCase.data.lighting_condition}`);
-      console.log(`  事故类型: ${testCase.data.first_crash_type}`);
       console.log(`  道路状况: ${testCase.data.roadway_surface_cond}`);
+      console.log(`  交通控制: ${testCase.data.traffic_control_device}`);
       
       const response = await axios.post(`${BASE_URL}/predict`, testCase.data);
-      const prediction = response.data.prediction;
+      const { probability, risk_level } = response.data;
       
-      console.log(`  预测事故严重程度: ${prediction.toFixed(2)} 分`);
+      console.log(`  模型得分: ${probability}`);
+      console.log(`  风险等级: ${risk_level}`);
       
-      // 根据预测值给出严重程度评估
-      let severity = '';
-      if (prediction < 20) severity = '轻微';
-      else if (prediction < 40) severity = '一般';
-      else if (prediction < 60) severity = '严重';
-      else severity = '非常严重';
+      // 根据得分给出详细解释
+      let explanation = '';
+      if (probability < 0.3) {
+        explanation = '安全驾驶条件，事故风险较低';
+      } else if (probability < 0.7) {
+        explanation = '需要谨慎驾驶，注意路况变化';
+      } else {
+        explanation = '高风险驾驶条件，建议避免出行或特别小心';
+      }
       
-      console.log(`  严重程度评估: ${severity}`);
+      console.log(`  建议: ${explanation}`);
     }
     
     console.log('\n✅ 所有API测试完成！');

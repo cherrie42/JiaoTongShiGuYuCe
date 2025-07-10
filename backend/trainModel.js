@@ -1,3 +1,5 @@
+// 使用 tfjs-node 来支持文件系统操作
+require('@tensorflow/tfjs-node');
 const tf = require('@tensorflow/tfjs');
 const TrafficAccidentPredictor = require('./aiModel');
 const path = require('path');
@@ -14,7 +16,7 @@ class ModelTrainer {
     this.dbConfig = {
       host: 'localhost',
       user: 'root', 
-      password: 'lmc0315lmc',
+      password: 'Vvk@2778',
       database: 'traffic_prediction'
     };
   }
@@ -34,7 +36,6 @@ class ModelTrainer {
           traffic_control_device,
           weather_condition,
           lighting_condition,
-          first_crash_type,
           trafficway_type,
           alignment,
           roadway_surface_cond,
@@ -44,6 +45,7 @@ class ModelTrainer {
           crash_day_of_week,
           crash_month
         FROM traffic_accidents 
+        ORDER BY RAND()
         LIMIT ${parseInt(limit)}`
       );
       
@@ -191,29 +193,53 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   
   if (args.length === 0) {
+    console.log('🚀 交通事故预测模型训练工具');
+    console.log('');
     console.log('使用方法:');
+    console.log('  从数据库训练: node trainModel.js --db [训练数据量]');
     console.log('  从文件训练: node trainModel.js <数据文件路径>');
-    console.log('  从数据库训练: node trainModel.js --db [数据条数]');
     console.log('');
     console.log('示例:');
+    console.log('  node trainModel.js --db 5000     # 使用5000条数据训练');
+    console.log('  node trainModel.js --db 10000    # 使用10000条数据训练');
+    console.log('  node trainModel.js --db 209306   # 使用全部数据训练');
     console.log('  node trainModel.js ./data/traffic_accidents.xlsx');
-    console.log('  node trainModel.js --db 5000');
+    console.log('');
+    console.log('注意: 训练数据量越大，模型性能越好，但训练时间也越长');
     process.exit(1);
   }
 
   // 检查是否从数据库训练
   if (args[0] === '--db') {
-    const limit = args[1] ? parseInt(args[1]) : 5000;
-    console.log(`从数据库训练模型，使用前 ${limit} 条数据`);
+    let limit = 5000; // 默认值
+    
+    if (args[1]) {
+      const inputLimit = parseInt(args[1]);
+      if (isNaN(inputLimit) || inputLimit <= 0) {
+        console.error('❌ 错误: 训练数据量必须是正整数');
+        console.log('示例: node trainModel.js --db 5000');
+        process.exit(1);
+      }
+      limit = inputLimit;
+    } else {
+      console.log('⚠️  警告: 未指定训练数据量，使用默认值5000条');
+    }
+    
+    console.log(`🎯 从数据库训练模型，使用前 ${limit.toLocaleString()} 条数据`);
+    console.log(`⏱️  预计训练时间: ${limit > 50000 ? '10-20分钟' : limit > 10000 ? '5-10分钟' : '2-5分钟'}`);
+    console.log('');
     
     // 从数据库训练
     trainer.trainAndSaveModelFromDatabase(limit)
       .then(() => {
-        console.log('模型训练完成！');
+        console.log('');
+        console.log('✅ 模型训练完成！');
+        console.log('📁 模型文件已保存到: ./trained_model/');
         process.exit(0);
       })
       .catch((error) => {
-        console.error('训练失败:', error.message);
+        console.error('');
+        console.error('❌ 训练失败:', error.message);
         process.exit(1);
       });
   } else {
@@ -221,18 +247,23 @@ if (require.main === module) {
     const dataPath = args[0];
     
     if (!fs.existsSync(dataPath)) {
-      console.error('数据文件不存在:', dataPath);
+      console.error('❌ 错误: 数据文件不存在:', dataPath);
       process.exit(1);
     }
 
+    console.log(`📁 从文件训练模型: ${dataPath}`);
+    
     // 开始训练
     trainer.trainAndSaveModel(dataPath)
       .then(() => {
-        console.log('模型训练完成！');
+        console.log('');
+        console.log('✅ 模型训练完成！');
+        console.log('📁 模型文件已保存到: ./trained_model/');
         process.exit(0);
       })
       .catch((error) => {
-        console.error('训练失败:', error.message);
+        console.error('');
+        console.error('❌ 训练失败:', error.message);
         process.exit(1);
       });
   }

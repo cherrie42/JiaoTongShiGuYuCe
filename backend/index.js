@@ -102,7 +102,7 @@ app.post('/api/predict', async (req, res) => {
     // 验证必要字段
     const requiredFields = [
       'crash_date', 'traffic_control_device', 'weather_condition',
-      'lighting_condition', 'first_crash_type', 'trafficway_type',
+      'lighting_condition', 'trafficway_type',
       'alignment', 'roadway_surface_cond', 'road_defect',
       'intersection_related_i', 'crash_hour', 'crash_day_of_week', 'crash_month'
     ];
@@ -116,11 +116,12 @@ app.post('/api/predict', async (req, res) => {
     }
 
     // 进行预测
-    const prediction = trainer.predictor.predictSingle(data);
+    const probability = trainer.predictor.predictSingle(data);
     
     res.json({
       success: true,
-      prediction: prediction,
+      probability: probability,  // 事故发生的概率 (0-1)
+      risk_level: probability < 0.3 ? '低风险' : probability < 0.7 ? '中风险' : '高风险',
       message: '预测完成'
     });
 
