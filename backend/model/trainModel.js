@@ -14,7 +14,7 @@ class ModelTrainer {
     this.dbConfig = {
       host: 'localhost',
       user: 'root', 
-      password: 'Vvk@2778',
+      password: '258488qw',
       database: 'traffic_prediction'
     };
   }

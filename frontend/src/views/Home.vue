@@ -1,134 +1,141 @@
 <template>
-  <div class="home">
-    <div class="welcome-header">
-      <h1 class="welcome-title">交通事故预测系统</h1>
-      <p class="welcome-subtitle">基于机器学习的智能预测分析平台</p>
-    </div>
+  <el-container class="app-container">
+    <!-- 侧边栏 -->
+    <el-aside :width="isCollapse ? '64px' : '200px'" class="sidebar">
+      <div class="logo" @click="$router.push('/home')">
+        <img src="@/image/logo.png" class="logo-img" />
+        <span v-if="!isCollapse" class="logo-title">事故预测系统</span>
+      </div>
 
-    <el-row class="feature-cards" :gutter="20">
-      <el-col
-        v-for="card in cards"
-        :key="card.title"
-        :xs="24"
-        :sm="12"
-        :md="12"
-        :lg="12"
-        :xl="12"
+      <el-menu
+        :default-active="route.path"
+        class="el-menu-vertical-demo"
+        :collapse="isCollapse"
+        :router="true"
+        background-color="#001529"
+        text-color="#fff"
+        active-text-color="#409EFF"
       >
-        <el-card class="feature-card" shadow="hover" @click="$router.push(card.path)">
-          <div class="card-body">
-            <el-icon :size="28" class="card-icon">
-              <component :is="card.icon" />
+        <el-menu-item index="/home/data">
+          <el-icon><DataLine /></el-icon>
+          <span>数据管理</span>
+        </el-menu-item>
+        <el-menu-item index="/home/route-planning">
+          <el-icon><Location /></el-icon>
+          <span>路线规划</span>
+        </el-menu-item>
+        <el-menu-item index="/home/prediction">
+          <el-icon><TrendCharts /></el-icon>
+          <span>事故预测</span>
+        </el-menu-item>
+        <el-menu-item index="/home/analysis">
+          <el-icon><PieChart /></el-icon>
+          <span>数据分析</span>
+        </el-menu-item>
+      </el-menu>
+    </el-aside>
+
+    <!-- 主体内容 -->
+    <el-container>
+      <!-- 顶部导航栏 -->
+      <el-header class="header">
+        <div class="left">
+          <el-button link @click="toggleCollapse">
+            <el-icon>
+              <component :is="isCollapse ? Expand : Fold" />
             </el-icon>
-            <h3>{{ card.title }}</h3>
-            <p>{{ card.description }}</p>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-  </div>
+          </el-button>
+        </div>
+        <div class="right">
+          <!-- 可添加用户头像、用户名、退出按钮等 -->
+          <span class="username">管理员</span>
+        </div>
+      </el-header>
+
+      <!-- 内容区域 -->
+      <el-main class="main-content">
+        <router-view />
+      </el-main>
+    </el-container>
+  </el-container>
 </template>
 
 <script setup>
-import { DataLine, TrendCharts, PieChart, Location } from '@element-plus/icons-vue'
+import { ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { Fold, Expand, DataLine, TrendCharts, PieChart, Location } from '@element-plus/icons-vue'
 
-// 按照你指定的顺序：数据管理、路径规划、事故预测、数据分析
-const cards = [
-  {
-    title: '数据管理',
-    description: '管理历史事故数据，支持数据导入导出和编辑',
-    icon: DataLine,
-    path: '/data'
-  },
-  {
-    title: '路径规划',
-    description: '智能推荐路线并显示沿途天气和风险等级',
-    icon: Location,
-    path: '/route-planning'
-  },
-  {
-    title: '事故预测',
-    description: '基于机器学习的事故风险预测和分析',
-    icon: TrendCharts,
-    path: '/prediction'
-  },
-  {
-    title: '数据分析',
-    description: '多维度数据分析和可视化展示',
-    icon: PieChart,
-    path: '/analysis'
-  }
-]
+const isCollapse = ref(false)
+const toggleCollapse = () => {
+  isCollapse.value = !isCollapse.value
+}
+
+const route = useRoute()
 </script>
 
-<style scoped lang="scss">
-.home {
-  min-height: 100vh;
-  padding: 30px 40px;
-  background: #f5f7fa;
-  box-sizing: border-box;
+<style lang="scss" scoped>
+.app-container {
+  height: 100vh;
 }
 
-.welcome-header {
-  text-align: center;
-  margin-bottom: 40px;
+.sidebar {
+  background-color: #001529;
+  color: #fff;
+  transition: width 0.2s;
+  overflow: hidden;
 
-  .welcome-title {
-    font-size: 2.4em;
-    color: #409eff;
-    margin-bottom: 10px;
-  }
-
-  .welcome-subtitle {
-    font-size: 1.2em;
-    color: #666;
-  }
-}
-
-.feature-cards {
-  width: 100%;
-}
-
-.feature-card {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  height: 100%;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  cursor: pointer;
-
-  &:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-  }
-
-  .card-body {
+  .logo {
+    height: 60px;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    text-align: center;
+    justify-content: center;
+    padding: 0 12px;
+    cursor: pointer;
 
-    .card-icon {
-      margin-bottom: 15px;
-      color: #409eff;
-      transition: transform 0.3s;
-
-      &:hover {
-        transform: rotate(10deg);
-      }
+    .logo-img {
+      width: 32px;
+      height: 32px;
+      margin-right: 8px;
     }
 
-    h3 {
-      font-size: 1.2em;
-      color: #333;
-      margin-bottom: 8px;
-    }
-
-    p {
-      font-size: 0.95em;
-      color: #666;
-      line-height: 1.4;
+    .logo-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #fff;
+      white-space: nowrap;
     }
   }
+
+  .el-menu {
+    border-right: none;
+  }
+}
+
+.header {
+  background-color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  height: 60px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+
+  .left {
+    display: flex;
+    align-items: center;
+  }
+
+  .right {
+    .username {
+      font-size: 14px;
+      color: #000000;
+    }
+  }
+}
+
+.main-content {
+  padding: 20px;
+  overflow-y: auto;
+  background-color: #f5f7fa;
 }
 </style>

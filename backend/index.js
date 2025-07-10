@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
 const ModelTrainer = require('./model/trainModel');
+const WeatherController = require('./controllers/weatherController');
 
 const app = express();
 app.use(cors());
@@ -164,6 +165,19 @@ app.get('/api/model/importance', async (req, res) => {
     });
   }
 });
+
+// 天气相关接口
+const weatherController = new WeatherController();
+
+// 根据城市名称获取天气信息
+app.get('/api/weather/city', weatherController.getWeatherByCity.bind(weatherController));
+
+// 获取实时天气信息
+app.get('/api/weather/live', weatherController.getLiveWeatherByCity.bind(weatherController));
+
+// 路线规划并获取沿途天气信息
+app.get('/api/weather/route', weatherController.getRouteWithWeather.bind(weatherController));
+
 
 const PORT = 3001;
 app.listen(PORT, () => {

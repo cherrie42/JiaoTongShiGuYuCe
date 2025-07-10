@@ -143,6 +143,8 @@ const planRoutes = () => {
 
 const drawRoutes = (routeList) => {
   clearMap()
+  const allRouteCoords = []  // 存储所有路线的经纬度信息
+
   routeList.forEach((route, index) => {
     const path = route.steps.flatMap(step => step.path)
     const polyline = new AMap.Polyline({
@@ -152,9 +154,15 @@ const drawRoutes = (routeList) => {
       map
     })
     routePolylines.push(polyline)
+    allRouteCoords.push(path.map(p => [p.lng, p.lat]))  // 经纬度数组
   })
+
+  // 保存到 localStorage 以便数据分析页使用
+  localStorage.setItem('plannedRoutes', JSON.stringify(allRouteCoords))
+
   if (routePolylines.length) map.setFitView(routePolylines)
 }
+
 
 // 与后端交互：将起点、终点和出发时间和车辆类型传递给后端
 const sendRouteDataToBackend = async (origin, destination, departTime, vehicleType) => {
