@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
-const ModelTrainer = require('./trainModel');
+const ModelTrainer = require('./model/trainModel');
 
 const app = express();
 app.use(cors());
@@ -11,7 +11,7 @@ app.use(express.json());
 const db = mysql.createConnection({
   host: 'localhost',
   user: 'root', 
-  password: 'lmc0315lmc',
+  password: 'Vvk@2778',
   database: 'traffic_prediction'
 });
 
@@ -60,7 +60,7 @@ const initModelTrainer = () => {
 };
 
 // 检查模型状态
-app.get('/api/model-status', (req, res) => {
+app.get('/api/model/status', (req, res) => {
   try {
     const trainer = initModelTrainer();
     const isTrained = trainer.isModelTrained();
@@ -134,7 +134,7 @@ app.post('/api/predict', async (req, res) => {
 });
 
 // 获取特征重要性（如果模型已训练）
-app.get('/api/feature-importance', async (req, res) => {
+app.get('/api/model/importance', async (req, res) => {
   try {
     const trainer = initModelTrainer();
     
