@@ -13,7 +13,7 @@ async function testAPI() {
     
     // 2. 测试特征重要性接口
     console.log('\n📊 测试特征重要性接口...');
-    const importanceResponse = await axios.get(`${BASE_URL}/model/importance`);
+    const importanceResponse = await axios.get(`${BASE_URL}/feature/importance`);
     console.log('✅ 特征重要性:', importanceResponse.data);
     
     // 3. 测试预测接口

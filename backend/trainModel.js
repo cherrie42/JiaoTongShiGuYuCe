@@ -14,7 +14,7 @@ class ModelTrainer {
     this.dbConfig = {
       host: 'localhost',
       user: 'root', 
-      password: 'lmc0315lmc',
+      password: 'Vvk@2778',
       database: 'traffic_prediction'
     };
   }
@@ -127,7 +127,8 @@ class ModelTrainer {
           mean: await this.predictor.scaler.mean.array(),
           std: await this.predictor.scaler.std.array()
         },
-        featureNames: this.predictor.featureNames
+        featureNames: this.predictor.featureNames,
+        featureImportance: this.predictor.featureImportance
       };
 
       fs.writeFileSync(
@@ -166,6 +167,7 @@ class ModelTrainer {
         std: tf.tensor(preprocessingParams.scaler.std)
       };
       this.predictor.featureNames = preprocessingParams.featureNames;
+      this.predictor.featureImportance = preprocessingParams.featureImportance || {};
 
       console.log('模型加载成功');
       return true;
