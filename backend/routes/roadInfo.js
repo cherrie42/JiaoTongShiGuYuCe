@@ -1,82 +1,51 @@
 const express = require('express')
-const axios = require('axios')
 const router = express.Router()
 
-const GAODE_KEY = '你的高德key'
-
-// 将 [{ lng, lat }] 转为 "lng1,lat1|lng2,lat2|..."
-function formatPath(path) {
-  return path.map(p => `${p.lng},${p.lat}`).join('|')
-}
-
-// 对道路名称和等级做分类
-function analyzeRoadInfo(points) {
-  const stats = {
-    total: points.length,
-    roadCount: {},
-    levelCount: {
-      expressway: 0,   // 高速
-      trunk: 0,        // 主干道
-      secondary: 0,    // 次干道
-      local: 0,        // 地方路
-      other: 0
-    }
-  }
-
-  points.forEach(pt => {
-    const name = pt.road_name || '未知'
-    const level = pt.road_level || 'other'
-
-    stats.roadCount[name] = (stats.roadCount[name] || 0) + 1
-
-    if (level.includes('express')) stats.levelCount.expressway++
-    else if (level.includes('trunk')) stats.levelCount.trunk++
-    else if (level.includes('secondary')) stats.levelCount.secondary++
-    else if (level.includes('local')) stats.levelCount.local++
-    else stats.levelCount.other++
-  })
-
-  // 计算比例
-  const levelRatio = {}
-  for (const key in stats.levelCount) {
-    levelRatio[key] = parseFloat(
-      ((stats.levelCount[key] / stats.total) * 100).toFixed(2)
-    )
-  }
-
-  return {
-    levelRatio,
-    roadUsage: stats.roadCount
-  }
-}
-
-// 路由处理
-router.post('/', async (req, res) => {
-  const path = req.body.path
-
-  if (!Array.isArray(path) || path.length < 2) {
-    return res.status(400).json({ error: '无效 path' })
-  }
-
+// 工具函数：根据经纬度反向解析地址（如城市）
+const axios = require('axios')
+const getCityByCoord = async (lng, lat) => {
   try {
-    const url = 'https://restapi.amap.com/v4/grasproad/driving'
-    const response = await axios.post(url, {
-      key: GAODE_KEY,
-      locations: formatPath(path)
-    })
-
-    const points = response.data.data.points
-
-    if (!points || points.length === 0) {
-      return res.status(500).json({ error: '未返回有效道路信息' })
+    const key = '79bb58e3344bcd57dfb6dc82c904fb36' // ⚠️ 替换为你自己的高德 key
+    const url = `https://restapi.amap.com/v3/geocode/regeo?location=${lng},${lat}&key=${key}&radius=1000`
+    const res = await axios.get(url)
+    if (res.data.status === '1') {
+      return res.data.regeocode.addressComponent.city || res.data.regeocode.addressComponent.province
     }
-
-    const result = analyzeRoadInfo(points)
-    res.json(result)
+    return '未知'
   } catch (err) {
-    console.error('道路分析失败', err)
-    res.status(500).json({ error: '道路分析失败，请检查高德API配置' })
+    console.error('反向解析失败:', err.message)
+    return '未知'
   }
+}
+
+// POST 接口：接收前端路线详情数据
+router.post('/plan', async (req, res) => {
+  const { routes } = req.body
+
+  if (!Array.isArray(routes)) {
+    return res.status(400).json({ error: '请求体格式错误' })
+  }
+
+  const result = await Promise.all(
+    routes.map(async (route) => {
+      const sampledPoints = route.path.filter((_, index) => index % 10 === 0) // 每隔10个点采样一次
+      const cities = await Promise.all(
+        sampledPoints.map(([lng, lat]) => getCityByCoord(lng, lat))
+      )
+
+      const uniqueCities = [...new Set(cities.filter(Boolean))]
+
+      return {
+        index: route.index,
+        cityList: uniqueCities,
+        departTime: route.departTime,
+        vehicleType: route.vehicleType
+      }
+    })
+  )
+
+  // 返回封装的路线信息
+  res.json({ routes: result })
 })
 
 module.exports = router
