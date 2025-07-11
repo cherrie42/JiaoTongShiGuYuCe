@@ -12,6 +12,7 @@ export const sendRouteData = (data) => {
 /**
  * 获取路线风险分析数据
  * @returns {Promise} 路线风险分析结果
+ * 接口/route-risk负责DataAnalysis的展示
  */
 export const getRouteRiskAnalysis = () => {
   return request.get('/route-risk').then(response => {
@@ -28,6 +29,7 @@ export const getRouteRiskAnalysis = () => {
  * @param {string} start - 起点城市
  * @param {string} end - 终点城市
  * @returns {Promise} 路线预测结果
+ * 接口/predict/routes负责AccidentPrediction的展示
  */
 export const getRoutePrediction = (start, end) => {
   return request.get('/predict/routes', {
