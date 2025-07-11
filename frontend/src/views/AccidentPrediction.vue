@@ -54,49 +54,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRoute } from 'vue-router'
+import { getRoutePrediction } from '@/api/route'
 
-const routeResults = ref([
-  {
-    riskLevel: '中风险',
-    cities: [
-      {
-        name: '北京',
-        weather: '晴',
-        temperature: 29,
-        humidity: 50,
-        windSpeed: 3
-      },
-      {
-        name: '石家庄',
-        weather: '多云',
-        temperature: 31,
-        humidity: 55,
-        windSpeed: 2
-      }
-    ]
-  },
-  {
-    riskLevel: '高风险',
-    cities: [
-      {
-        name: '北京',
-        weather: '雨',
-        temperature: 25,
-        humidity: 85,
-        windSpeed: 4
-      },
-      {
-        name: '保定',
-        weather: '雷阵雨',
-        temperature: 24,
-        humidity: 90,
-        windSpeed: 5
-      }
-    ]
-  }
-])
+const route = useRoute()
+const routeResults = ref([])
+let map = null
+let polyline = null
 
 const getRiskLevelType = (level) => {
   const types = {
@@ -107,8 +73,70 @@ const getRiskLevelType = (level) => {
   return types[level] || 'info'
 }
 
-let map = null
+// 根据城市名获取经纬度
+function getCityLngLat(cityName) {
+  return new Promise((resolve, reject) => {
+    const geocoder = new window.AMap.Geocoder()
+    geocoder.getLocation(cityName, (status, result) => {
+      if (status === 'complete' && result.geocodes.length) {
+        resolve([result.geocodes[0].location.lng, result.geocodes[0].location.lat])
+      } else {
+        reject('无法获取城市坐标: ' + cityName)
+      }
+    })
+  })
+}
+
+// 在地图上画出路线
+async function drawRouteOnMap(cities) {
+  if (!map) return
+  if (polyline) {
+    polyline.setMap(null)
+    polyline = null
+  }
+  try {
+    const lnglats = []
+    for (const city of cities) {
+      const lnglat = await getCityLngLat(city.name)
+      lnglats.push(lnglat)
+    }
+    polyline = new window.AMap.Polyline({
+      path: lnglats,
+      strokeColor: '#FF0000',
+      strokeWeight: 6
+    })
+    polyline.setMap(map)
+    map.setFitView([polyline])
+  } catch (e) {
+    ElMessage.error('部分城市坐标获取失败，无法绘制完整路线')
+  }
+}
+
 onMounted(() => {
+  const start = route.query.origin || route.query.start
+  const end = route.query.destination || route.query.end
+
+  if (!start || !end) {
+    ElMessage.error('缺少起点或终点参数')
+    return
+  }
+
+  getRoutePrediction(start, end)
+    .then(res => {
+      if (res.data.success) {
+        routeResults.value = res.data.routes
+        // 默认画第一条路线
+        if (res.data.routes.length > 0) {
+          drawRouteOnMap(res.data.routes[0].cities)
+        }
+      } else {
+        ElMessage.error(res.data.error || '获取路线预测失败')
+      }
+    })
+    .catch(() => {
+      ElMessage.error('获取路线预测失败')
+    })
+
   if (!window.AMap) {
     ElMessage.error('高德地图SDK未加载')
     return
@@ -118,6 +146,13 @@ onMounted(() => {
     zoom: 7,
     center: [116.397428, 39.90923]
   })
+})
+
+// 如果后续想支持切换路线高亮，可以加watch
+watch(routeResults, (newVal) => {
+  if (newVal.length > 0) {
+    drawRouteOnMap(newVal[0].cities)
+  }
 })
 </script>
 
