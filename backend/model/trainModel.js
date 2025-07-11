@@ -1,4 +1,3 @@
-// 使用 tfjs-node 来支持文件系统操作
 const tf = require('@tensorflow/tfjs');
 const TrafficAccidentPredictor = require('./aiModel');
 const path = require('path');
