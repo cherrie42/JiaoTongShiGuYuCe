@@ -1,0 +1,139 @@
+{
+  "labelEncoder": {
+    "traffic_control_device": {
+      "STOP SIGN/FLASHER": 0,
+      "TRAFFIC SIGNAL": 1,
+      "NO CONTROLS": 2,
+      "UNKNOWN": 3,
+      "PEDESTRIAN CROSSING SIGN": 4,
+      "YIELD": 5,
+      "RAILROAD CROSSING GATE": 6,
+      "OTHER": 7,
+      "FLASHING CONTROL SIGNAL": 8,
+      "SCHOOL ZONE": 9,
+      "POLICE/FLAGMAN": 10,
+      "OTHER WARNING SIGN": 11,
+      "LANE USE MARKING": 12,
+      "OTHER REG. SIGN": 13
+    },
+    "weather_condition": {
+      "CLEAR": 0,
+      "RAIN": 1,
+      "CLOUDY/OVERCAST": 2,
+      "UNKNOWN": 3,
+      "OTHER": 4,
+      "SNOW": 5,
+      "SLEET/HAIL": 6,
+      "FOG/SMOKE/HAZE": 7,
+      "FREEZING RAIN/DRIZZLE": 8,
+      "BLOWING SNOW": 9
+    },
+    "lighting_condition": {
+      "DAYLIGHT": 0,
+      "DUSK": 1,
+      "DARKNESS, LIGHTED ROAD": 2,
+      "UNKNOWN": 3,
+      "DAWN": 4,
+      "DARKNESS": 5
+    },
+    "trafficway_type": {
+      "NOT DIVIDED": 0,
+      "FOUR WAY": 1,
+      "DIVIDED - W/MEDIAN (NOT RAISED)": 2,
+      "NOT REPORTED": 3,
+      "ONE-WAY": 4,
+      "DIVIDED - W/MEDIAN BARRIER": 5,
+      "UNKNOWN": 6,
+      "CENTER TURN LANE": 7,
+      "OTHER": 8,
+      "T-INTERSECTION": 9,
+      "Y-INTERSECTION": 10,
+      "DRIVEWAY": 11,
+      "RAMP": 12,
+      "UNKNOWN INTERSECTION TYPE": 13,
+      "FIVE POINT, OR MORE": 14,
+      "PARKING LOT": 15,
+      "L-INTERSECTION": 16,
+      "TRAFFIC ROUTE": 17,
+      "ALLEY": 18,
+      "ROUNDABOUT": 19
+    },
+    "alignment": {
+      "STRAIGHT AND LEVEL": 0,
+      "STRAIGHT ON GRADE": 1,
+      "CURVE, LEVEL": 2,
+      "CURVE ON GRADE": 3,
+      "CURVE ON HILLCREST": 4,
+      "STRAIGHT ON HILLCREST": 5
+    },
+    "roadway_surface_cond": {
+      "DRY": 0,
+      "WET": 1,
+      "UNKNOWN": 2,
+      "ICE": 3,
+      "SNOW OR SLUSH": 4,
+      "OTHER": 5
+    },
+    "road_defect": {
+      "NO DEFECTS": 0,
+      "UNKNOWN": 1,
+      "OTHER": 2,
+      "RUT, HOLES": 3,
+      "WORN SURFACE": 4,
+      "SHOULDER DEFECT": 5,
+      "DEBRIS ON ROADWAY": 6
+    },
+    "intersection_related_i": {
+      "Y": 0,
+      "N": 1
+    }
+  },
+  "scaler": {
+    "mean": [
+      2020.4639892578125,
+      6.798999786376953,
+      15.711999893188477,
+      1.002000093460083,
+      0.44300001859664917,
+      0.7860000133514404,
+      2.309999942779541,
+      0.036000002175569534,
+      0.42600002884864807,
+      0.20600001513957977,
+      0.04100000113248825,
+      13.732999801635742,
+      4.207000255584717,
+      6.798999786376953
+    ],
+    "std": [
+      2.4418649673461914,
+      3.4450833797454834,
+      8.717629432678223,
+      0.9465706944465637,
+      1.0921313762664795,
+      1.2264598608016968,
+      3.3093655109405518,
+      0.30774015188217163,
+      0.8709328174591064,
+      0.5436579585075378,
+      0.19829019904136658,
+      5.4164299964904785,
+      1.9703174829483032,
+      3.4450833797454834
+    ]
+  },
+  "featureNames": [
+    "crash_date",
+    "traffic_control_device",
+    "weather_condition",
+    "lighting_condition",
+    "trafficway_type",
+    "alignment",
+    "roadway_surface_cond",
+    "road_defect",
+    "intersection_related_i",
+    "crash_hour",
+    "crash_day_of_week",
+    "crash_month"
+  ]
+}
