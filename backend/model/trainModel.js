@@ -1,4 +1,4 @@
-const tf = require('@tensorflow/tfjs-node');
+const tf = require('@tensorflow/tfjs');
 const TrafficAccidentPredictor = require('./aiModel');
 const path = require('path');
 const fs = require('fs');
