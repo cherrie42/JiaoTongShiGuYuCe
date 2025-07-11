@@ -1,0 +1,20 @@
+{
+  "name": "traffic-backend",
+  "version": "1.0.0",
+  "description": "交通事故预测后端服务",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "axios": "^1.10.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "ml-random-forest": "^2.1.0",
+    "mysql2": "^3.14.2",
+    "xlsx": "^0.18.5"
+  }
+}
