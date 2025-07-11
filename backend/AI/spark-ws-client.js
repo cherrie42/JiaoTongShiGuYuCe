@@ -1,9 +1,12 @@
 const express = require('express');
 const WebSocket = require('ws');
 const crypto = require('crypto');
+const cors = require('cors');
 const { URL, URLSearchParams } = require('url');
 
 const app = express();
+app.use(cors());
+
 app.use(express.json()); // 支持json请求体
 
 class WsParam {
@@ -152,7 +155,7 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-const PORT = 3000;
+const PORT = 4550;
 app.listen(PORT, () => {
   console.log(`服务启动，监听端口 ${PORT}`);
   console.log(`POST http://localhost:${PORT}/api/chat  传入 { "question": "你的问题" }`);

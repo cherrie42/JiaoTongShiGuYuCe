@@ -32,6 +32,11 @@
           <el-icon><PieChart /></el-icon>
           <span>数据分析</span>
         </el-menu-item>
+        <!-- 新增：AI聊天菜单项 -->
+        <el-menu-item index="/home/ai-chat">
+          <el-icon><ChatDotRound /></el-icon>
+          <span>AI聊天</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
@@ -83,7 +88,8 @@ import {
   TrendCharts,
   PieChart,
   Location,
-  User
+  User,
+  ChatDotRound // 新增：引入 ChatDotRound 图标
 } from '@element-plus/icons-vue'
 
 const isCollapse = ref(false)
@@ -172,4 +178,4 @@ const logout = () => {
   overflow-y: auto;
   background-color: #f5f7fa;
 }
-</style> 
+</style>

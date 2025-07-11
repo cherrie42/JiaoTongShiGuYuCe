@@ -9,6 +9,7 @@ const DataAnalysis = () => import('@/views/DataAnalysis.vue')
 const RoutePlanning = () => import('@/views/RoutePlanning.vue')
 const LoginRegister = () => import('@/views/LoginRegister.vue')
 const UserManagement = () => import('@/views/UserManagement.vue') // ✅ 新增用户管理页面
+const AIChat = () => import('@/views/AIChat.vue') // 新增：AI聊天页面
 
 const routes = [
   {
@@ -48,14 +49,17 @@ const routes = [
       {
         path: 'route-planning',
         name: 'RoutePlanning',
-        component: RoutePlanning,
-        meta: { title: '路线规划' }
+        component: RoutePlanning
       },
       {
-        path: 'user-management', // ✅ 添加用户管理模块路径
+        path: 'user-management',
         name: 'UserManagement',
-        component: UserManagement,
-        meta: { title: '用户管理' }
+        component: UserManagement
+      },
+      {
+        path: 'ai-chat', // 新增：AI聊天路由
+        name: 'AIChat',
+        component: AIChat
       }
     ]
   }
