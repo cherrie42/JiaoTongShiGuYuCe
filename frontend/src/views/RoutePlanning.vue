@@ -96,16 +96,22 @@ const planRoutes = () => {
         geocoder.getLocation(form.value.destination, (status2, result2) => {
           if (status2 === 'complete' && result2.geocodes.length) {
             const destLngLat = result2.geocodes[0].location
-            const strategies = [
-              AMap.DrivingPolicy.LEAST_TIME,
-              AMap.DrivingPolicy.LEAST_FEE,
-              AMap.DrivingPolicy.LEAST_DISTANCE
-            ]
 
-            let results = [], completed = 0
+            // 确保 DrivingPolicy 已加载
+            AMap.plugin(['AMap.Driving'], () => {
+              if (!AMap.DrivingPolicy) {
+                ElMessage.error('高德地图策略未加载，请稍后重试')
+                return
+              }
+              const strategies = [
+                AMap.DrivingPolicy.LEAST_TIME,
+                AMap.DrivingPolicy.LEAST_FEE,
+                AMap.DrivingPolicy.LEAST_DISTANCE
+              ]
 
-            strategies.forEach((strategy, i) => {
-              AMap.plugin(['AMap.Driving'], () => {
+              let results = [], completed = 0
+
+              strategies.forEach((strategy, i) => {
                 const driving = new AMap.Driving({ policy: strategy })
                 driving.search(originLngLat, destLngLat, async (status, result) => {
                   completed++

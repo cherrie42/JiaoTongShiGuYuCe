@@ -1,8 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
-const ModelTrainer = require('./model/trainModel');
 const WeatherController = require('./controllers/weatherController');
+const ModelTrainer = require('./model/trainModel');
+
 
 const app = express();
 app.use(cors());
@@ -24,7 +25,7 @@ db.connect((err) => {
   }
 });
 
-// 测试接口
+// 数据库连接测试接口
 app.get('/test-mysql', (req, res) => {
   db.query('SELECT 1 + 1 AS solution', (err, results) => {
     if (err) {
@@ -49,8 +50,9 @@ app.get('/test-mysql', (req, res) => {
 
 // 交通事故预测相关接口
 
-// 全局变量存储模型训练器
+// 全局变量存储模型训练器和模型加载状态
 let modelTrainer = null;
+let modelLoaded = false;
 
 // 初始化模型训练器
 const initModelTrainer = () => {
@@ -58,6 +60,24 @@ const initModelTrainer = () => {
     modelTrainer = new ModelTrainer();
   }
   return modelTrainer;
+};
+
+// 加载模型（如果尚未加载）
+const loadModelIfNeeded = async () => {
+  const trainer = initModelTrainer();
+  
+  if (!modelLoaded && trainer.isModelTrained()) {
+    try {
+      await trainer.loadTrainedModel();
+      modelLoaded = true;
+      console.log('模型已成功加载到内存');
+    } catch (error) {
+      console.error('模型加载失败:', error);
+      throw error;
+    }
+  }
+  
+  return trainer;
 };
 
 // 检查模型状态
@@ -82,7 +102,8 @@ app.get('/api/model/status', (req, res) => {
 // 预测单条数据
 app.post('/api/predict', async (req, res) => {
   try {
-    const trainer = initModelTrainer();
+    // 加载模型（如果尚未加载）
+    const trainer = await loadModelIfNeeded();
     
     // 检查模型是否已训练
     if (!trainer.isModelTrained()) {
@@ -90,11 +111,6 @@ app.post('/api/predict', async (req, res) => {
         success: false,
         error: '模型尚未训练，请先使用命令行训练模型'
       });
-    }
-
-    // 加载模型（如果尚未加载）
-    if (!trainer.predictor.isModelLoaded()) {
-      await trainer.loadTrainedModel();
     }
 
     const data = req.body;
@@ -138,18 +154,14 @@ app.post('/api/predict', async (req, res) => {
 // 获取特征重要性（如果模型已训练）
 app.get('/api/model/importance', async (req, res) => {
   try {
-    const trainer = initModelTrainer();
+    // 加载模型（如果尚未加载）
+    const trainer = await loadModelIfNeeded();
     
     if (!trainer.isModelTrained()) {
       return res.status(400).json({
         success: false,
         error: '模型尚未训练，请先使用命令行训练模型'
       });
-    }
-
-    // 加载模型（如果尚未加载）
-    if (!trainer.predictor.isModelLoaded()) {
-      await trainer.loadTrainedModel();
     }
 
     res.json({
@@ -168,7 +180,6 @@ app.get('/api/model/importance', async (req, res) => {
 
 // 天气相关接口
 const weatherController = new WeatherController();
-
 // 根据城市名称获取天气信息
 app.get('/api/weather/city', weatherController.getWeatherByCity.bind(weatherController));
 
@@ -178,6 +189,33 @@ app.get('/api/weather/live', weatherController.getLiveWeatherByCity.bind(weather
 // 路线规划并获取沿途天气信息
 app.get('/api/weather/route', weatherController.getRouteWithWeather.bind(weatherController));
 
+// 处理路线规划请求
+app.post('/api/plan', async (req, res) => {
+  try {
+    const routeData = req.body;
+    console.log('收到前端路线规划请求:', routeData);
+    const result = await weatherController.handleRoutePlanning(routeData);
+    
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (error) {
+    console.error('路线规划接口错误:', error);
+    res.status(500).json({
+      success: false,
+      error: '服务器内部错误',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// 获取路线风险分析数据
+app.get('/api/route-risk', weatherController.getRouteRiskAnalysis.bind(weatherController));
+
+// 获取路线规划及风险预测信息
+app.get('/api/predict/routes', weatherController.getRoutePrediction.bind(weatherController));
 
 const PORT = 3001;
 app.listen(PORT, () => {

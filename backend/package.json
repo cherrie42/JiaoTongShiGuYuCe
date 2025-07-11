@@ -8,13 +8,11 @@
   },
   "dependencies": {
     "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-node": "^4.22.0",
     "axios": "^1.10.0",
-    "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "express": "^4.18.2",
-    "jsonwebtoken": "^9.0.2",
-    "ml-random-forest": "^2.1.0",
-    "mysql2": "^3.14.2",
+    "mysql2": "^3.9.7",
     "xlsx": "^0.18.5"
   }
 }

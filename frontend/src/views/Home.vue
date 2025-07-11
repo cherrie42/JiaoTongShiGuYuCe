@@ -32,6 +32,11 @@
           <el-icon><PieChart /></el-icon>
           <span>数据分析</span>
         </el-menu-item>
+        <!-- 新增：AI聊天菜单项 -->
+        <el-menu-item index="/home/ai-chat">
+          <el-icon><ChatDotRound /></el-icon>
+          <span>AI聊天</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
@@ -46,9 +51,22 @@
             </el-icon>
           </el-button>
         </div>
+
         <div class="right">
-          <!-- 可添加用户头像、用户名、退出按钮等 -->
-          <span class="username">管理员</span>
+          <!-- 头像+下拉菜单 -->
+          <el-dropdown trigger="click">
+            <span class="el-dropdown-link">
+              <el-avatar size="medium">
+                <el-icon><User /></el-icon>
+              </el-avatar>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="goToUserManagement">用户管理</el-dropdown-item>
+                <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </el-header>
 
@@ -62,15 +80,34 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { Fold, Expand, DataLine, TrendCharts, PieChart, Location } from '@element-plus/icons-vue'
+import { useRouter, useRoute } from 'vue-router'
+import {
+  Fold,
+  Expand,
+  DataLine,
+  TrendCharts,
+  PieChart,
+  Location,
+  User,
+  ChatDotRound // 新增：引入 ChatDotRound 图标
+} from '@element-plus/icons-vue'
 
 const isCollapse = ref(false)
 const toggleCollapse = () => {
   isCollapse.value = !isCollapse.value
 }
 
+const router = useRouter()
 const route = useRoute()
+
+const goToUserManagement = () => {
+  router.push('/home/user-management')
+}
+
+const logout = () => {
+  // 可扩展清除 token 等逻辑
+  router.push('/login')
+}
 </script>
 
 <style lang="scss" scoped>
@@ -80,7 +117,7 @@ const route = useRoute()
 
 .sidebar {
   background-color: #001529;
-  color: #ffffff;
+  color: #fff;
   transition: width 0.2s;
   overflow: hidden;
 
@@ -112,7 +149,7 @@ const route = useRoute()
 }
 
 .header {
-  background-color: #ffffff;
+  background-color: #fff;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -126,9 +163,12 @@ const route = useRoute()
   }
 
   .right {
-    .username {
-      font-size: 14px;
-      color: #000000;
+    display: flex;
+    align-items: center;
+
+    .el-dropdown-link {
+      cursor: pointer;
+      user-select: none;
     }
   }
 }

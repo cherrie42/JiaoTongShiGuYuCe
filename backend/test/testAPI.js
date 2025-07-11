@@ -23,7 +23,6 @@ async function testAPI() {
       traffic_control_device: 'Traffic Signal',
       weather_condition: 'Clear',
       lighting_condition: 'Daylight',
-      first_crash_type: 'Rear End',
       trafficway_type: 'Two-Way, Not Divided',
       alignment: 'Straight',
       roadway_surface_cond: 'Dry',
@@ -47,7 +46,6 @@ async function testAPI() {
           traffic_control_device: 'Traffic Signal',
           weather_condition: 'Clear',
           lighting_condition: 'Daylight',
-          first_crash_type: 'Rear End',
           trafficway_type: 'Two-Way, Not Divided',
           alignment: 'Straight',
           roadway_surface_cond: 'Dry',
@@ -65,7 +63,6 @@ async function testAPI() {
           traffic_control_device: 'Stop Sign',
           weather_condition: 'Rain',
           lighting_condition: 'Dark - Street Lights On',
-          first_crash_type: 'Angle',
           trafficway_type: 'Two-Way, Not Divided',
           alignment: 'Curve',
           roadway_surface_cond: 'Wet',
@@ -83,7 +80,6 @@ async function testAPI() {
           traffic_control_device: 'No Control',
           weather_condition: 'Snow',
           lighting_condition: 'Dark - No Street Lights',
-          first_crash_type: 'Sideswipe',
           trafficway_type: 'One-Way',
           alignment: 'Straight',
           roadway_surface_cond: 'Snow/Slush',
@@ -100,22 +96,20 @@ async function testAPI() {
       console.log(`\n📊 测试案例: ${testCase.name}`);
       console.log(`  天气: ${testCase.data.weather_condition}`);
       console.log(`  照明: ${testCase.data.lighting_condition}`);
-      console.log(`  事故类型: ${testCase.data.first_crash_type}`);
       console.log(`  道路状况: ${testCase.data.roadway_surface_cond}`);
       
       const response = await axios.post(`${BASE_URL}/predict`, testCase.data);
-      const prediction = response.data.prediction;
+      const probability = response.data.probability;
       
-      console.log(`  预测事故严重程度: ${prediction.toFixed(2)} 分`);
+      console.log(`  预测事故发生概率: ${(probability * 100).toFixed(2)}%`);
       
-      // 根据预测值给出严重程度评估
-      let severity = '';
-      if (prediction < 20) severity = '轻微';
-      else if (prediction < 40) severity = '一般';
-      else if (prediction < 60) severity = '严重';
-      else severity = '非常严重';
+      // 根据概率给出风险等级评估
+      let risk = '';
+      if (probability < 0.3) risk = '低风险';
+      else if (probability < 0.7) risk = '中风险';
+      else risk = '高风险';
       
-      console.log(`  严重程度评估: ${severity}`);
+      console.log(`  风险等级: ${risk}`);
     }
     
     console.log('\n✅ 所有API测试完成！');

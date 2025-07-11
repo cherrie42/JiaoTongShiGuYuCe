@@ -8,6 +8,8 @@ const AccidentPrediction = () => import('@/views/AccidentPrediction.vue')
 const DataAnalysis = () => import('@/views/DataAnalysis.vue')
 const RoutePlanning = () => import('@/views/RoutePlanning.vue')
 const LoginRegister = () => import('@/views/LoginRegister.vue')
+const UserManagement = () => import('@/views/UserManagement.vue') // ✅ 用户管理页面
+const AIChat = () => import('@/views/AIChat.vue') // ✅ AI聊天页面
 
 const routes = [
   {
@@ -25,30 +27,40 @@ const routes = [
     component: HomeLayout,
     children: [
       {
-        path: '', // 默认子路由，访问 /home 时展示 Dashboard
+        path: '', // 访问 /home 默认展示首页
         name: 'Dashboard',
         component: Dashboard
       },
       {
-        path: 'data', // 访问 /home/data
+        path: 'data',
         name: 'DataManagement',
         component: DataManagement
       },
       {
-        path: 'prediction', // 访问 /home/prediction
+        path: 'prediction',
         name: 'AccidentPrediction',
         component: AccidentPrediction
       },
       {
-        path: 'analysis', // 访问 /home/analysis
+        path: 'analysis',
         name: 'DataAnalysis',
         component: DataAnalysis
       },
       {
-        path: 'route-planning', // 访问 /home/route-planning
+        path: 'route-planning',
         name: 'RoutePlanning',
         component: RoutePlanning,
-        meta: { title: '路线规划' }
+        meta: { title: '路线规划' } // ✅ 保留 meta 信息
+      },
+      {
+        path: 'user-management',
+        name: 'UserManagement',
+        component: UserManagement
+      },
+      {
+        path: 'ai-chat',
+        name: 'AIChat',
+        component: AIChat
       }
     ]
   }
