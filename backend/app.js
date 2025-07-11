@@ -1,6 +1,7 @@
 // backend/app.js
 const express = require('express')
 const cors = require('cors')
+const WeatherController = require('./controllers/weatherController')
 
 const app = express()
 const PORT = 3000
@@ -8,21 +9,37 @@ const PORT = 3000
 app.use(cors()) // 允许跨域
 app.use(express.json()) // 解析 JSON 请求体
 
+// 创建控制器实例
+const weatherController = new WeatherController()
+
 // 路由：接收前端的路线数据
-app.post('/plan', (req, res) => {
-  const { origin, destination, departTime, vehicleType } = req.body
+app.post('/plan', async (req, res) => {
+  const routeData = req.body
 
-  console.log('接收到路线规划请求：')
-  console.log({ origin, destination, departTime, vehicleType })
+  // 打印接收到的数据
+  console.log('接收:', JSON.stringify(routeData, null, 2))
 
-  // 这里可以后续处理路线计算、存数据库、调用预测模型等
-  // 现在先返回成功结果
-  res.json({
-    code: 200,
-    success: true,
-    message: '已接收路线信息',
-    data: { routeId: Date.now() }
-  })
+  try {
+    // 调用控制器处理路线规划
+    const result = await weatherController.handleRoutePlanning(routeData)
+    
+    // 打印发送的数据
+    console.log('发送:', JSON.stringify(result, null, 2))
+    
+    res.json(result)
+  } catch (error) {
+    console.error('路线规划处理失败:', error)
+    const errorResponse = {
+      success: false,
+      error: '路线规划处理失败',
+      timestamp: new Date().toISOString()
+    }
+    
+    // 打印错误响应
+    console.log('发送:', JSON.stringify(errorResponse, null, 2))
+    
+    res.status(500).json(errorResponse)
+  }
 })
 
 // 启动服务

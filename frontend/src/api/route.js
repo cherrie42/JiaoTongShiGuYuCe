@@ -8,3 +8,35 @@ import request from '@/utils/request'
 export const sendRouteData = (data) => {
   return request.post('/plan', data)
 }
+
+/**
+ * 获取路线风险分析数据
+ * @returns {Promise} 路线风险分析结果
+ */
+export const getRouteRiskAnalysis = () => {
+  return request.get('/route-risk').then(response => {
+    console.log('路线风险分析数据:', response.data)
+    return response
+  }).catch(error => {
+    console.error('获取路线风险分析数据失败:', error)
+    throw error
+  })
+}
+
+/**
+ * 获取路线规划及风险预测信息
+ * @param {string} start - 起点城市
+ * @param {string} end - 终点城市
+ * @returns {Promise} 路线预测结果
+ */
+export const getRoutePrediction = (start, end) => {
+  return request.get('/predict/routes', {
+    params: { start, end }
+  }).then(response => {
+    console.log('路线规划及风险预测数据:', response.data)
+    return response
+  }).catch(error => {
+    console.error('获取路线规划及风险预测数据失败:', error)
+    throw error
+  })
+}

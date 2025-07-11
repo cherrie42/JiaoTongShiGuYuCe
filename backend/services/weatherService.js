@@ -484,6 +484,541 @@ class WeatherService {
     }
   }
 
+  /**
+   * 处理路线规划请求
+   * @param {Object} routeData - 路线规划数据
+   * @param {string} routeData.origin - 起点
+   * @param {string} routeData.destination - 终点
+   * @param {string} routeData.departTime - 出发时间
+   * @param {string} routeData.vehicleType - 车辆类型
+   * @returns {Promise<Object>} 处理结果
+   */
+  async handleRoutePlanning(routeData) {
+    try {
+      const { origin, destination, departTime, vehicleType } = routeData;
+      
+      // 验证必要参数
+      if (!origin || !destination) {
+        console.log('❌ 数据验证失败: 起点或终点为空');
+        return {
+          success: false,
+          error: '起点和终点不能为空'
+        };
+      }
+
+      // 获取起点和终点的天气信息
+      const originWeather = await this.getWeatherByCity(origin);
+      const destinationWeather = await this.getWeatherByCity(destination);
+      // 路线规划并获取沿途天气
+      const routeWithWeather = await this.getRouteWithWeather(origin, destination);
+
+      // 构建响应数据
+      const response = {
+        success: true,
+        message: '路线规划数据接收成功',
+        data: {
+          routeInfo: {
+            origin,
+            destination,
+            departTime: departTime || new Date().toISOString(),
+            vehicleType: vehicleType || '小客车'
+          },
+          weatherInfo: {
+            origin: originWeather,
+            destination: destinationWeather
+          },
+          routePlanning: routeWithWeather
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      console.log('路线规划处理完成:', response);
+      return response;
+
+    } catch (error) {
+      console.error('路线规划处理失败:', error.message);
+      return {
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * 获取路线风险分析数据
+   * @param {Object} routeData - 路线数据（从handleRoutePlanning的结果中获取）
+   * @returns {Promise<Object>} 风险分析结果
+   */
+  async getRouteRiskAnalysis(routeData) {
+    try {
+      console.log('开始分析路线风险...');
+      
+      // 模拟模型预测 - 假设默认输出概率为0.8
+      const defaultRiskValue = 0.8;
+      
+      // 从路线规划数据中提取路径点
+      const routePoints = this.generateRoutePoints(routeData);
+      
+      // 为每个点计算风险值（这里使用模拟数据）
+      const routeWithRisk = routePoints.map((point, index) => {
+        // 模拟不同的风险值，基于位置和时间等因素
+        const baseRisk = defaultRiskValue;
+        const positionFactor = Math.sin(index * 0.5) * 0.3; // 位置变化因子
+        const timeFactor = Math.random() * 0.2; // 时间随机因子
+        const risk = Math.max(0, Math.min(1, baseRisk + positionFactor + timeFactor));
+        
+        return {
+          lng: point.lng,
+          lat: point.lat,
+          risk: parseFloat(risk.toFixed(2))
+        };
+      });
+      
+      // 识别高风险点（风险值 > 0.7）
+      const highRiskThreshold = 0.7;
+      const highRiskPoints = routeWithRisk
+        .filter(point => point.risk > highRiskThreshold)
+        .map(point => ({
+          lng: point.lng,
+          lat: point.lat,
+          risk: point.risk,
+          description: this.generateRiskDescription(point.risk),
+          suggestion: this.generateRiskSuggestion(point.risk)
+        }));
+      
+      // 计算统计信息
+      const risks = routeWithRisk.map(point => point.risk);
+      const maxRisk = Math.max(...risks);
+      const avgRisk = risks.reduce((sum, risk) => sum + risk, 0) / risks.length;
+      
+      // 生成总结信息
+      const summary = {
+        start: routeData.data?.routeInfo?.origin || '未知起点',
+        end: routeData.data?.routeInfo?.destination || '未知终点',
+        maxRisk: parseFloat(maxRisk.toFixed(2)),
+        avgRisk: parseFloat(avgRisk.toFixed(2)),
+        suggestion: this.generateOverallSuggestion(avgRisk, maxRisk, routeData.data?.routeInfo?.vehicleType)
+      };
+      
+      const result = {
+        route: routeWithRisk,
+        highRiskPoints,
+        summary
+      };
+      
+      console.log('路线风险分析完成:', {
+        totalPoints: routeWithRisk.length,
+        highRiskPointsCount: highRiskPoints.length,
+        maxRisk,
+        avgRisk
+      });
+      
+      return result;
+      
+    } catch (error) {
+      console.error('路线风险分析失败:', error.message);
+      return {
+        route: [],
+        highRiskPoints: [],
+        summary: {
+          start: '分析失败',
+          end: '分析失败',
+          maxRisk: 0,
+          avgRisk: 0,
+          suggestion: '风险分析失败，请稍后重试'
+        }
+      };
+    }
+  }
+  
+  /**
+   * 从路线规划数据生成路径点
+   * @param {Object} routeData - 路线规划数据
+   * @returns {Array} 路径点数组
+   */
+  generateRoutePoints(routeData) {
+    const points = [];
+    
+    try {
+      // 从路线规划数据中提取路径信息
+      const routePlanning = routeData.data?.routePlanning;
+      if (routePlanning && routePlanning.success && routePlanning.routes && routePlanning.routes.length > 0) {
+        const route = routePlanning.routes[0]; // 取第一条路线
+        
+        // 从节点信息生成路径点
+        if (route.nodes && route.nodes.length > 0) {
+          route.nodes.forEach((node, index) => {
+            // 为每个节点生成多个路径点
+            const baseLng = 116.391 + (index * 0.001); // 模拟经度变化
+            const baseLat = 39.907 + (index * 0.001); // 模拟纬度变化
+            
+            // 每个节点生成3-5个路径点
+            const pointCount = Math.floor(Math.random() * 3) + 3;
+            for (let i = 0; i < pointCount; i++) {
+              points.push({
+                lng: baseLng + (i * 0.0001) + (Math.random() * 0.0001),
+                lat: baseLat + (i * 0.0001) + (Math.random() * 0.0001)
+              });
+            }
+          });
+        }
+      }
+      
+      // 如果没有有效的路线数据，生成默认路径点
+      if (points.length === 0) {
+        const defaultPoints = [
+          { lng: 116.391, lat: 39.907 },
+          { lng: 116.392, lat: 39.908 },
+          { lng: 116.393, lat: 39.909 },
+          { lng: 116.394, lat: 39.910 },
+          { lng: 116.395, lat: 39.911 },
+          { lng: 116.396, lat: 39.912 },
+          { lng: 116.397, lat: 39.913 },
+          { lng: 116.398, lat: 39.914 },
+          { lng: 116.399, lat: 39.915 },
+          { lng: 116.400, lat: 39.916 }
+        ];
+        return defaultPoints;
+      }
+      
+      return points;
+      
+    } catch (error) {
+      console.error('生成路径点失败:', error);
+      // 返回默认路径点
+      return [
+        { lng: 116.391, lat: 39.907 },
+        { lng: 116.392, lat: 39.908 },
+        { lng: 116.393, lat: 39.909 }
+      ];
+    }
+  }
+  
+  /**
+   * 根据风险值生成风险描述
+   * @param {number} risk - 风险值
+   * @returns {string} 风险描述
+   */
+  generateRiskDescription(risk) {
+    if (risk > 0.9) {
+      return '极高风险路段 - 急转弯 + 恶劣天气 + 路况极差';
+    } else if (risk > 0.8) {
+      return '高风险路段 - 急转弯 + 路况不佳 + 视线不良';
+    } else if (risk > 0.7) {
+      return '中高风险路段 - 弯道较多 + 路面湿滑';
+    } else if (risk > 0.6) {
+      return '中等风险路段 - 车流量较大 + 路况一般';
+    } else {
+      return '低风险路段 - 路况良好 + 视线清晰';
+    }
+  }
+  
+  /**
+   * 根据风险值生成建议
+   * @param {number} risk - 风险值
+   * @returns {string} 建议
+   */
+  generateRiskSuggestion(risk) {
+    if (risk > 0.9) {
+      return '建议绕行或选择其他路线，必须通行时请极度谨慎';
+    } else if (risk > 0.8) {
+      return '建议减速慢行，保持安全车距，注意观察路况';
+    } else if (risk > 0.7) {
+      return '建议适当减速，注意路面湿滑情况';
+    } else if (risk > 0.6) {
+      return '建议保持正常车速，注意车流变化';
+    } else {
+      return '路况良好，可正常通行';
+    }
+  }
+  
+  /**
+   * 生成整体通行建议
+   * @param {number} avgRisk - 平均风险值
+   * @param {number} maxRisk - 最高风险值
+   * @param {string} vehicleType - 车辆类型
+   * @returns {string} 整体建议
+   */
+  generateOverallSuggestion(avgRisk, maxRisk, vehicleType) {
+    let suggestion = '';
+    
+    if (maxRisk > 0.8) {
+      suggestion += '路线存在高风险路段，';
+    } else if (avgRisk > 0.6) {
+      suggestion += '路线整体风险较高，';
+    } else {
+      suggestion += '路线整体风险较低，';
+    }
+    
+    if (vehicleType === '危险品运输车') {
+      suggestion += '建议选择专用路线或避开高风险路段';
+    } else if (vehicleType === '大型客车') {
+      suggestion += '建议避开夜间高峰通行，注意限高限重';
+    } else if (vehicleType === '货车') {
+      suggestion += '建议避开城市中心区域，选择货运专用道路';
+    } else {
+      suggestion += '建议避开夜间高峰通行，保持安全驾驶';
+    }
+    
+    return suggestion;
+  }
+
+  /**
+   * 获取路线规划及风险预测信息
+   * @param {string} start - 起点城市
+   * @param {string} end - 终点城市
+   * @returns {Promise<Object>} 路线预测结果
+   */
+  async getRoutePrediction(start, end) {
+    try {
+      console.log('开始路线预测分析:', { start, end });
+      
+      // 验证参数
+      if (!start || !end) {
+        return {
+          success: false,
+          error: '起点和终点不能为空'
+        };
+      }
+
+      // 获取路线规划
+      const routeWithWeather = await this.getRouteWithWeather(start, end);
+      
+      if (!routeWithWeather.success) {
+        return {
+          success: false,
+          error: routeWithWeather.error
+        };
+      }
+
+      const routes = [];
+      
+      // 处理每条路线
+      for (let i = 0; i < Math.min(routeWithWeather.routes.length, 3); i++) {
+        const route = routeWithWeather.routes[i];
+        const cities = [];
+        
+        // 处理路线中的城市节点
+        if (route.nodes && route.nodes.length > 0) {
+          for (const node of route.nodes) {
+            try {
+              // 获取城市天气信息
+              const weatherInfo = await this.getLiveWeatherByCity(node.name);
+              
+              if (weatherInfo.success) {
+                cities.push({
+                  name: node.name,
+                  weather: weatherInfo.weather.weather,
+                  temperature: parseInt(weatherInfo.weather.temperature),
+                  humidity: parseInt(weatherInfo.weather.humidity),
+                  windSpeed: this.convertWindPowerToSpeed(weatherInfo.weather.windPower)
+                });
+              } else {
+                // 如果获取天气失败，使用默认数据
+                cities.push({
+                  name: node.name,
+                  weather: '晴',
+                  temperature: 25,
+                  humidity: 60,
+                  windSpeed: 2
+                });
+              }
+              
+              // 添加延迟避免API调用频率限制
+              await this.delay(100);
+              
+            } catch (error) {
+              console.error(`获取城市 ${node.name} 天气信息失败:`, error);
+              // 使用默认数据
+              cities.push({
+                name: node.name,
+                weather: '晴',
+                temperature: 25,
+                humidity: 60,
+                windSpeed: 2
+              });
+            }
+          }
+        }
+        
+        // 计算路线风险等级
+        const riskLevel = this.calculateRouteRiskLevel(cities);
+        
+        routes.push({
+          riskLevel,
+          cities
+        });
+      }
+      
+      const result = {
+        success: true,
+        routes
+      };
+      
+      console.log('路线预测分析完成:', {
+        routeCount: routes.length,
+        totalCities: routes.reduce((sum, route) => sum + route.cities.length, 0)
+      });
+      
+      return result;
+      
+    } catch (error) {
+      console.error('路线预测分析失败:', error.message);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+  
+  /**
+   * 将风力等级转换为风速等级
+   * @param {string} windPower - 风力等级描述
+   * @returns {number} 风速等级 (1-6)
+   */
+  convertWindPowerToSpeed(windPower) {
+    if (!windPower) return 2;
+    
+    const windMap = {
+      '≤3': 1,
+      '4-5': 2,
+      '6-7': 3,
+      '8-9': 4,
+      '10-11': 5,
+      '≥12': 6
+    };
+    
+    // 尝试匹配风力等级
+    for (const [key, value] of Object.entries(windMap)) {
+      if (windPower.includes(key)) {
+        return value;
+      }
+    }
+    
+    // 默认返回中等风速
+    return 2;
+  }
+  
+  /**
+   * 计算路线风险等级
+   * @param {Array} cities - 城市天气信息数组
+   * @returns {string} 风险等级 (低风险/中风险/高风险)
+   */
+  calculateRouteRiskLevel(cities) {
+    if (!cities || cities.length === 0) {
+      return '低风险';
+    }
+    
+    let riskScore = 0;
+    let cityCount = cities.length;
+    
+    cities.forEach(city => {
+      // 天气风险评分
+      const weatherRisk = this.getWeatherRiskScore(city.weather);
+      
+      // 温度风险评分
+      const tempRisk = this.getTemperatureRiskScore(city.temperature);
+      
+      // 湿度风险评分
+      const humidityRisk = this.getHumidityRiskScore(city.humidity);
+      
+      // 风速风险评分
+      const windRisk = this.getWindRiskScore(city.windSpeed);
+      
+      // 累计风险分数
+      riskScore += weatherRisk + tempRisk + humidityRisk + windRisk;
+    });
+    
+    // 计算平均风险分数
+    const avgRiskScore = riskScore / cityCount;
+    
+    // 根据平均风险分数确定风险等级
+    if (avgRiskScore >= 7) {
+      return '高风险';
+    } else if (avgRiskScore >= 4) {
+      return '中风险';
+    } else {
+      return '低风险';
+    }
+  }
+  
+  /**
+   * 获取天气风险评分
+   * @param {string} weather - 天气描述
+   * @returns {number} 风险评分
+   */
+  getWeatherRiskScore(weather) {
+    const weatherRiskMap = {
+      '晴': 1,
+      '多云': 1,
+      '阴': 2,
+      '小雨': 3,
+      '中雨': 4,
+      '大雨': 6,
+      '暴雨': 8,
+      '雷阵雨': 7,
+      '雪': 5,
+      '雾': 4,
+      '霾': 3
+    };
+    
+    for (const [key, value] of Object.entries(weatherRiskMap)) {
+      if (weather.includes(key)) {
+        return value;
+      }
+    }
+    
+    return 2; // 默认中等风险
+  }
+  
+  /**
+   * 获取温度风险评分
+   * @param {number} temperature - 温度
+   * @returns {number} 风险评分
+   */
+  getTemperatureRiskScore(temperature) {
+    if (temperature < -10 || temperature > 40) {
+      return 3; // 极低或极高温度
+    } else if (temperature < 0 || temperature > 35) {
+      return 2; // 较低或较高温度
+    } else {
+      return 1; // 适宜温度
+    }
+  }
+  
+  /**
+   * 获取湿度风险评分
+   * @param {number} humidity - 湿度
+   * @returns {number} 风险评分
+   */
+  getHumidityRiskScore(humidity) {
+    if (humidity > 90) {
+      return 3; // 极高湿度
+    } else if (humidity > 80) {
+      return 2; // 高湿度
+    } else if (humidity < 30) {
+      return 2; // 低湿度
+    } else {
+      return 1; // 适宜湿度
+    }
+  }
+  
+  /**
+   * 获取风速风险评分
+   * @param {number} windSpeed - 风速等级
+   * @returns {number} 风险评分
+   */
+  getWindRiskScore(windSpeed) {
+    if (windSpeed >= 5) {
+      return 3; // 强风
+    } else if (windSpeed >= 3) {
+      return 2; // 中风
+    } else {
+      return 1; // 微风
+    }
+  }
+
 
 }
 
