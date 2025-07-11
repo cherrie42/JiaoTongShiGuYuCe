@@ -1,4 +1,5 @@
-const tf = require('@tensorflow/tfjs-node');
+// 使用 tfjs-node 来支持文件系统操作
+const tf = require('@tensorflow/tfjs');
 const TrafficAccidentPredictor = require('./aiModel');
 const path = require('path');
 const fs = require('fs');
@@ -14,7 +15,7 @@ class ModelTrainer {
     this.dbConfig = {
       host: 'localhost',
       user: 'root', 
-      password: '258488qw',
+      password: 'lmc0315lmc',
       database: 'traffic_prediction'
     };
   }
@@ -34,7 +35,6 @@ class ModelTrainer {
           traffic_control_device,
           weather_condition,
           lighting_condition,
-          first_crash_type,
           trafficway_type,
           alignment,
           roadway_surface_cond,
@@ -44,6 +44,7 @@ class ModelTrainer {
           crash_day_of_week,
           crash_month
         FROM traffic_accidents 
+        ORDER BY RAND()
         LIMIT ${parseInt(limit)}`
       );
       
@@ -112,13 +113,33 @@ class ModelTrainer {
   // 保存模型和预处理参数
   async saveModel() {
     try {
-      // 创建模型保存目录
       if (!fs.existsSync(this.modelPath)) {
         fs.mkdirSync(this.modelPath);
       }
 
-      // 保存模型
-      await this.predictor.model.save(`file://${this.modelPath}/model`);
+      // 保存结构
+      const modelTopology = this.predictor.model.toJSON();
+      // toJSON() 返回的是字符串，需要先解析成对象
+      const modelTopologyObj = JSON.parse(modelTopology);
+      fs.writeFileSync(
+        path.join(this.modelPath, 'model.json'),
+        JSON.stringify(modelTopologyObj, null, 2)
+      );
+
+      // 保存权重
+      const weights = await this.predictor.model.getWeights();
+      const weightsData = [];
+      for (let w of weights) {
+        weightsData.push({
+          data: Array.from(await w.data()),
+          shape: w.shape,
+          dtype: w.dtype
+        });
+      }
+      fs.writeFileSync(
+        path.join(this.modelPath, 'weights.json'),
+        JSON.stringify(weightsData, null, 2)
+      );
 
       // 保存预处理参数
       const preprocessingParams = {
@@ -129,7 +150,6 @@ class ModelTrainer {
         },
         featureNames: this.predictor.featureNames
       };
-
       fs.writeFileSync(
         path.join(this.modelPath, 'preprocessing.json'),
         JSON.stringify(preprocessingParams, null, 2)
@@ -145,21 +165,53 @@ class ModelTrainer {
   // 加载已训练的模型
   async loadTrainedModel() {
     try {
-      const modelPath = path.join(this.modelPath, 'model');
+      const modelJsonPath = path.join(this.modelPath, 'model.json');
+      const weightsPath = path.join(this.modelPath, 'weights.json');
       const preprocessingPath = path.join(this.modelPath, 'preprocessing.json');
 
-      if (!fs.existsSync(modelPath) || !fs.existsSync(preprocessingPath)) {
+      if (!fs.existsSync(modelJsonPath) || !fs.existsSync(weightsPath) || !fs.existsSync(preprocessingPath)) {
         throw new Error('模型文件不存在，请先训练模型');
       }
 
-      // 加载模型
-      this.predictor.model = await tf.loadLayersModel(`file://${modelPath}/model.json`);
+      // 读取结构
+      const modelTopology = JSON.parse(fs.readFileSync(modelJsonPath, 'utf8'));
+      if (modelTopology.class_name !== 'Sequential') {
+        throw new Error('只支持Sequential模型结构');
+      }
+      // 重建模型结构
+      const model = tf.sequential();
+      modelTopology.config.layers.forEach((layer, idx) => {
+        if (layer.class_name === 'Dense') {
+          const config = layer.config;
+          const layerConfig = {
+            units: config.units,
+            activation: config.activation,
+          };
+          if (idx === 0) {
+            layerConfig.inputShape = [config.batch_input_shape[1]];
+          }
+          model.add(tf.layers.dense(layerConfig));
+        } else if (layer.class_name === 'Dropout') {
+          const config = layer.config;
+          model.add(tf.layers.dropout({
+            rate: config.rate || 0.2
+          }));
+        } else {
+          throw new Error(`暂不支持的层类型: ${layer.class_name}`);
+        }
+      });
+      // 读取权重
+      const weightsData = JSON.parse(fs.readFileSync(weightsPath, 'utf8'));
+      const weights = weightsData.map(w =>
+        tf.tensor(w.data, w.shape, w.dtype)
+      );
+      model.setWeights(weights);
+      this.predictor.model = model;
 
       // 加载预处理参数
       const preprocessingParams = JSON.parse(
         fs.readFileSync(preprocessingPath, 'utf8')
       );
-
       this.predictor.labelEncoder = preprocessingParams.labelEncoder;
       this.predictor.scaler = {
         mean: tf.tensor(preprocessingParams.scaler.mean),
@@ -177,9 +229,10 @@ class ModelTrainer {
 
   // 检查模型是否存在
   isModelTrained() {
-    const modelPath = path.join(this.modelPath, 'model');
+    const modelJsonPath = path.join(this.modelPath, 'model.json');
+    const weightsPath = path.join(this.modelPath, 'weights.json');
     const preprocessingPath = path.join(this.modelPath, 'preprocessing.json');
-    return fs.existsSync(modelPath) && fs.existsSync(preprocessingPath);
+    return fs.existsSync(modelJsonPath) && fs.existsSync(weightsPath) && fs.existsSync(preprocessingPath);
   }
 }
 
@@ -191,29 +244,53 @@ if (require.main === module) {
   const args = process.argv.slice(2);
   
   if (args.length === 0) {
+    console.log('🚀 交通事故预测模型训练工具');
+    console.log('');
     console.log('使用方法:');
+    console.log('  从数据库训练: node trainModel.js --db [训练数据量]');
     console.log('  从文件训练: node trainModel.js <数据文件路径>');
-    console.log('  从数据库训练: node trainModel.js --db [数据条数]');
     console.log('');
     console.log('示例:');
+    console.log('  node trainModel.js --db 5000     # 使用5000条数据训练');
+    console.log('  node trainModel.js --db 10000    # 使用10000条数据训练');
+    console.log('  node trainModel.js --db 209306   # 使用全部数据训练');
     console.log('  node trainModel.js ./data/traffic_accidents.xlsx');
-    console.log('  node trainModel.js --db 5000');
+    console.log('');
+    console.log('注意: 训练数据量越大，模型性能越好，但训练时间也越长');
     process.exit(1);
   }
 
   // 检查是否从数据库训练
   if (args[0] === '--db') {
-    const limit = args[1] ? parseInt(args[1]) : 5000;
-    console.log(`从数据库训练模型，使用前 ${limit} 条数据`);
+    let limit = 5000; // 默认值
+    
+    if (args[1]) {
+      const inputLimit = parseInt(args[1]);
+      if (isNaN(inputLimit) || inputLimit <= 0) {
+        console.error('❌ 错误: 训练数据量必须是正整数');
+        console.log('示例: node trainModel.js --db 5000');
+        process.exit(1);
+      }
+      limit = inputLimit;
+    } else {
+      console.log('⚠️  警告: 未指定训练数据量，使用默认值5000条');
+    }
+    
+    console.log(`🎯 从数据库训练模型，使用前 ${limit.toLocaleString()} 条数据`);
+    console.log(`⏱️  预计训练时间: ${limit > 50000 ? '10-20分钟' : limit > 10000 ? '5-10分钟' : '2-5分钟'}`);
+    console.log('');
     
     // 从数据库训练
     trainer.trainAndSaveModelFromDatabase(limit)
       .then(() => {
-        console.log('模型训练完成！');
+        console.log('');
+        console.log('✅ 模型训练完成！');
+        console.log('📁 模型文件已保存到: ./trained_model/');
         process.exit(0);
       })
       .catch((error) => {
-        console.error('训练失败:', error.message);
+        console.error('');
+        console.error('❌ 训练失败:', error.message);
         process.exit(1);
       });
   } else {
@@ -221,18 +298,23 @@ if (require.main === module) {
     const dataPath = args[0];
     
     if (!fs.existsSync(dataPath)) {
-      console.error('数据文件不存在:', dataPath);
+      console.error('❌ 错误: 数据文件不存在:', dataPath);
       process.exit(1);
     }
 
+    console.log(`📁 从文件训练模型: ${dataPath}`);
+    
     // 开始训练
     trainer.trainAndSaveModel(dataPath)
       .then(() => {
-        console.log('模型训练完成！');
+        console.log('');
+        console.log('✅ 模型训练完成！');
+        console.log('📁 模型文件已保存到: ./trained_model/');
         process.exit(0);
       })
       .catch((error) => {
-        console.error('训练失败:', error.message);
+        console.error('');
+        console.error('❌ 训练失败:', error.message);
         process.exit(1);
       });
   }

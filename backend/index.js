@@ -12,7 +12,7 @@ app.use(express.json());
 const db = mysql.createConnection({
   host: 'localhost',
   user: 'root', 
-  password: 'Vvk@2778',
+  password: 'lmc0315lmc',
   database: 'traffic_prediction'
 });
 
@@ -49,8 +49,9 @@ app.get('/test-mysql', (req, res) => {
 
 // 交通事故预测相关接口
 
-// 全局变量存储模型训练器
+// 全局变量存储模型训练器和模型加载状态
 let modelTrainer = null;
+let modelLoaded = false;
 
 // 初始化模型训练器
 const initModelTrainer = () => {
@@ -58,6 +59,24 @@ const initModelTrainer = () => {
     modelTrainer = new ModelTrainer();
   }
   return modelTrainer;
+};
+
+// 加载模型（如果尚未加载）
+const loadModelIfNeeded = async () => {
+  const trainer = initModelTrainer();
+  
+  if (!modelLoaded && trainer.isModelTrained()) {
+    try {
+      await trainer.loadTrainedModel();
+      modelLoaded = true;
+      console.log('模型已成功加载到内存');
+    } catch (error) {
+      console.error('模型加载失败:', error);
+      throw error;
+    }
+  }
+  
+  return trainer;
 };
 
 // 检查模型状态
@@ -82,7 +101,8 @@ app.get('/api/model/status', (req, res) => {
 // 预测单条数据
 app.post('/api/predict', async (req, res) => {
   try {
-    const trainer = initModelTrainer();
+    // 加载模型（如果尚未加载）
+    const trainer = await loadModelIfNeeded();
     
     // 检查模型是否已训练
     if (!trainer.isModelTrained()) {
@@ -90,11 +110,6 @@ app.post('/api/predict', async (req, res) => {
         success: false,
         error: '模型尚未训练，请先使用命令行训练模型'
       });
-    }
-
-    // 加载模型（如果尚未加载）
-    if (!trainer.predictor.isModelLoaded()) {
-      await trainer.loadTrainedModel();
     }
 
     const data = req.body;
@@ -138,18 +153,14 @@ app.post('/api/predict', async (req, res) => {
 // 获取特征重要性（如果模型已训练）
 app.get('/api/model/importance', async (req, res) => {
   try {
-    const trainer = initModelTrainer();
+    // 加载模型（如果尚未加载）
+    const trainer = await loadModelIfNeeded();
     
     if (!trainer.isModelTrained()) {
       return res.status(400).json({
         success: false,
         error: '模型尚未训练，请先使用命令行训练模型'
       });
-    }
-
-    // 加载模型（如果尚未加载）
-    if (!trainer.predictor.isModelLoaded()) {
-      await trainer.loadTrainedModel();
     }
 
     res.json({
