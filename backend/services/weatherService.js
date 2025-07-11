@@ -553,45 +553,47 @@ class WeatherService {
   async getRouteRiskAnalysis(routeData) {
     try {
       console.log('开始分析路线风险...');
-      
-      // 模拟模型预测 - 假设默认输出概率为0.8
-      const defaultRiskValue = 0.8;
-      
-      // 从路线规划数据中提取路径点
-      const routePoints = this.generateRoutePoints(routeData);
-      
-      // 为每个点计算风险值（这里使用模拟数据）
-      const routeWithRisk = routePoints.map((point, index) => {
-        // 模拟不同的风险值，基于位置和时间等因素
-        const baseRisk = defaultRiskValue;
-        const positionFactor = Math.sin(index * 0.5) * 0.3; // 位置变化因子
-        const timeFactor = Math.random() * 0.2; // 时间随机因子
-        const risk = Math.max(0, Math.min(1, baseRisk + positionFactor + timeFactor));
-        
+      // 从路线规划数据中提取节点
+      const routePlanning = routeData.data?.routePlanning;
+      let nodes = [];
+      if (routePlanning && routePlanning.success && routePlanning.routes && routePlanning.routes.length > 0) {
+        nodes = routePlanning.routes[0].nodes || [];
+      }
+      // 并发处理每个节点的风险预测
+      const routeWithRisk = await Promise.all(nodes.map(async (node) => {
+        if (!node.name) {
+          return {
+            lng: node.coordinates ? parseFloat(node.coordinates.split(',')[0]) : null,
+            lat: node.coordinates ? parseFloat(node.coordinates.split(',')[1]) : null,
+            risk: null,
+            location: null
+          };
+        }
+        const predictRes = await this.predictAccidentRiskByLocation(node.name);
+        const risk = predictRes.success ? predictRes.probability : null;
         return {
-          lng: point.lng,
-          lat: point.lat,
-          risk: parseFloat(risk.toFixed(2))
+          lng: node.coordinates ? parseFloat(node.coordinates.split(',')[0]) : null,
+          lat: node.coordinates ? parseFloat(node.coordinates.split(',')[1]) : null,
+          risk: risk !== null ? parseFloat(risk.toFixed(2)) : null,
+          location: node.name
         };
-      });
-      
+      }));
       // 识别高风险点（风险值 > 0.7）
       const highRiskThreshold = 0.7;
       const highRiskPoints = routeWithRisk
-        .filter(point => point.risk > highRiskThreshold)
+        .filter(point => point.risk !== null && point.risk > highRiskThreshold)
         .map(point => ({
           lng: point.lng,
           lat: point.lat,
           risk: point.risk,
           description: this.generateRiskDescription(point.risk),
-          suggestion: this.generateRiskSuggestion(point.risk)
+          suggestion: this.generateRiskSuggestion(point.risk),
+          location: point.location
         }));
-      
       // 计算统计信息
-      const risks = routeWithRisk.map(point => point.risk);
-      const maxRisk = Math.max(...risks);
-      const avgRisk = risks.reduce((sum, risk) => sum + risk, 0) / risks.length;
-      
+      const validRisks = routeWithRisk.filter(p => p.risk !== null).map(p => p.risk);
+      const maxRisk = validRisks.length ? Math.max(...validRisks) : 0;
+      const avgRisk = validRisks.length ? validRisks.reduce((sum, risk) => sum + risk, 0) / validRisks.length : 0;
       // 生成总结信息
       const summary = {
         start: routeData.data?.routeInfo?.origin || '未知起点',
@@ -600,22 +602,18 @@ class WeatherService {
         avgRisk: parseFloat(avgRisk.toFixed(2)),
         suggestion: this.generateOverallSuggestion(avgRisk, maxRisk, routeData.data?.routeInfo?.vehicleType)
       };
-      
       const result = {
         route: routeWithRisk,
         highRiskPoints,
         summary
       };
-      
       console.log('路线风险分析完成:', {
         totalPoints: routeWithRisk.length,
         highRiskPointsCount: highRiskPoints.length,
         maxRisk,
         avgRisk
       });
-      
       return result;
-      
     } catch (error) {
       console.error('路线风险分析失败:', error.message);
       return {
@@ -1017,6 +1015,117 @@ class WeatherService {
     } else {
       return 1; // 微风
     }
+  }
+
+  /**
+   * 输入地点，预测该地点事故发生概率（可选指定时间）
+   * @param {string} location 地点名（如城市、区、路段等）
+   * @param {Date|string} [time] 可选，指定时间（Date对象或可被Date解析的字符串）
+   * @returns {Promise<Object>} { success, location, probability, features }
+   */
+  async predictAccidentRiskByLocation(location, time) {
+    try {
+      // 1. 获取地理编码（经纬度）
+      const geocodeResponse = await axios.get(`${this.baseUrl}/geocode/geo`, {
+        params: {
+          key: this.apiKey,
+          address: location,
+          output: 'json'
+        }
+      });
+      if (geocodeResponse.data.status !== '1' || !geocodeResponse.data.geocodes.length) {
+        throw new Error('地理编码失败');
+      }
+      const adcode = geocodeResponse.data.geocodes[0].adcode;
+      const lnglat = geocodeResponse.data.geocodes[0].location; // "经度,纬度"
+
+      // 2. 获取实时天气
+      const weatherResponse = await axios.get(`${this.baseUrl}/weather/weatherInfo`, {
+        params: {
+          key: this.apiKey,
+          city: adcode,
+          extensions: 'base',
+          output: 'json'
+        }
+      });
+      if (weatherResponse.data.status !== '1' || !weatherResponse.data.lives.length) {
+        throw new Error('天气获取失败');
+      }
+      const weather = weatherResponse.data.lives[0];
+
+      // 3. 自动映射特征字段
+      let dateObj;
+      if (time) {
+        dateObj = new Date(time);
+        if (isNaN(dateObj.getTime())) throw new Error('时间格式不正确');
+      } else {
+        dateObj = new Date();
+      }
+      const featureData = {
+        crash_date: dateObj.toISOString().slice(0, 10), // 日期 yyyy-mm-dd
+        traffic_control_device: 'Traffic Signal', // 默认值
+        weather_condition: this.mapWeatherToCondition(weather.weather),
+        lighting_condition: this.mapLightingCondition(dateObj.getHours()),
+        trafficway_type: 'Two-Way, Not Divided', // 默认值
+        alignment: 'Straight', // 默认值
+        roadway_surface_cond: this.mapRoadSurfaceCond(weather.weather),
+        road_defect: 'None', // 默认值
+        intersection_related_i: 'Non-Intersection', // 默认值
+        crash_hour: dateObj.getHours(),
+        crash_day_of_week: dateObj.getDay() === 0 ? 7 : dateObj.getDay(), // 周日为7
+        crash_month: dateObj.getMonth() + 1
+      };
+
+      // 4. 调用本地事故预测API
+      const predictionResponse = await axios.post('http://localhost:3001/api/predict', featureData);
+      const probability = predictionResponse.data.probability;
+
+      return {
+        success: true,
+        location,
+        time: dateObj.toISOString(),
+        probability,
+        features: featureData
+      };
+    } catch (error) {
+      console.error('事故概率预测失败:', error.message);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * 天气描述映射到模型字段
+   */
+  mapWeatherToCondition(weather) {
+    if (!weather) return 'Clear';
+    if (weather.includes('雨')) return 'Rain';
+    if (weather.includes('雪')) return 'Snow';
+    if (weather.includes('雾') || weather.includes('霾')) return 'Fog';
+    if (weather.includes('阴')) return 'Cloudy';
+    if (weather.includes('晴')) return 'Clear';
+    return 'Clear';
+  }
+
+  /**
+   * 根据小时映射照明条件
+   */
+  mapLightingCondition(hour) {
+    if (hour >= 6 && hour < 18) return 'Daylight';
+    if (hour >= 18 && hour < 20) return 'Dusk';
+    return 'Dark - Street Lights On';
+  }
+
+  /**
+   * 根据天气映射路面状况
+   */
+  mapRoadSurfaceCond(weather) {
+    if (!weather) return 'Dry';
+    if (weather.includes('雨')) return 'Wet';
+    if (weather.includes('雪')) return 'Snow/Slush';
+    return 'Dry';
   }
 
 

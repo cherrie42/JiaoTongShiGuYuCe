@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
 const WeatherController = require('./controllers/weatherController');
+const ModelTrainer = require('./model/trainModel');
+
 
 const app = express();
 app.use(cors());
