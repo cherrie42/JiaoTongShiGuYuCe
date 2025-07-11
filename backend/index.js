@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
 const WeatherController = require('./controllers/weatherController');
+const ModelTrainer = require('./model/trainModel');
+
 
 const app = express();
 app.use(cors());
@@ -11,7 +13,7 @@ app.use(express.json());
 const db = mysql.createConnection({
   host: 'localhost',
   user: 'root', 
-  password: 'lmc0315lmc',
+  password: 'Vvk@2778',
   database: 'traffic_prediction'
 });
 
