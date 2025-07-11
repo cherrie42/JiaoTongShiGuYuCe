@@ -2,6 +2,6 @@
 module.exports = {
   host: 'localhost',
   user: 'root', 
-  password: 'lmc0315lmc', // 请根据您的MySQL密码修改
+  password: '258488qw', // 请根据您的MySQL密码修改
   database: 'traffic_prediction'
 }; 
