@@ -487,53 +487,105 @@ class WeatherService {
   /**
    * 处理路线规划请求
    * @param {Object} routeData - 路线规划数据
-   * @param {string} routeData.origin - 起点
-   * @param {string} routeData.destination - 终点
-   * @param {string} routeData.departTime - 出发时间
-   * @param {string} routeData.vehicleType - 车辆类型
+   * @param {Array} routeData.paths - 路径数组
+   * @param {Object} routeData.paths[0].origin - 起点坐标
+   * @param {Object} routeData.paths[0].destination - 终点坐标
+   * @param {string} routeData.paths[0].departTime - 出发时间
+   * @param {string} routeData.paths[0].vehicleType - 车辆类型
    * @returns {Promise<Object>} 处理结果
    */
   async handleRoutePlanning(routeData) {
     try {
-      const { origin, destination, departTime, vehicleType } = routeData;
-      
-      // 验证必要参数
-      if (!origin || !destination) {
-        console.log('❌ 数据验证失败: 起点或终点为空');
-        return {
-          success: false,
-          error: '起点和终点不能为空'
+      // 处理新的数据格式：包含paths数组
+      if (routeData.paths && Array.isArray(routeData.paths) && routeData.paths.length > 0) {
+        const firstPath = routeData.paths[0];
+        const { origin, destination, departTime, vehicleType } = firstPath;
+        
+        // 验证必要参数
+        if (!origin || !destination) {
+          console.log('❌ 数据验证失败: 起点或终点为空');
+          return {
+            success: false,
+            error: '起点和终点不能为空'
+          };
+        }
+
+        // 从坐标转换为地址名称（用于天气查询）
+        const originAddress = `${origin.lat},${origin.lng}`;
+        const destinationAddress = `${destination.lat},${destination.lng}`;
+
+        // 获取起点和终点的天气信息
+        const originWeather = await this.getLiveWeatherByLocation(originAddress);
+        const destinationWeather = await this.getLiveWeatherByLocation(destinationAddress);
+        
+        // 路线规划并获取沿途天气
+        const routeWithWeather = await this.getRouteWithWeather(originAddress, destinationAddress);
+
+        // 构建响应数据
+        const response = {
+          success: true,
+          message: '路线规划数据接收成功',
+          data: {
+            routeInfo: {
+              origin: originAddress,
+              destination: destinationAddress,
+              departTime: departTime || new Date().toISOString(),
+              vehicleType: vehicleType || '小客车'
+            },
+            weatherInfo: {
+              origin: originWeather,
+              destination: destinationWeather
+            },
+            routePlanning: routeWithWeather,
+            paths: routeData.paths // 保存完整的路径数据
+          },
+          timestamp: new Date().toISOString()
         };
+
+        console.log('路线规划处理完成:', response);
+        return response;
+      } else {
+        // 兼容旧的数据格式
+        const { origin, destination, departTime, vehicleType } = routeData;
+        
+        // 验证必要参数
+        if (!origin || !destination) {
+          console.log('❌ 数据验证失败: 起点或终点为空');
+          return {
+            success: false,
+            error: '起点和终点不能为空'
+          };
+        }
+
+        // 获取起点和终点的天气信息
+        const originWeather = await this.getWeatherByCity(origin);
+        const destinationWeather = await this.getWeatherByCity(destination);
+        // 路线规划并获取沿途天气
+        const routeWithWeather = await this.getRouteWithWeather(origin, destination);
+
+        // 构建响应数据
+        const response = {
+          success: true,
+          message: '路线规划数据接收成功',
+          data: {
+            routeInfo: {
+              origin,
+              destination,
+              departTime: departTime || new Date().toISOString(),
+              vehicleType: vehicleType || '小客车'
+            },
+            weatherInfo: {
+              origin: originWeather,
+              destination: destinationWeather
+            },
+            routePlanning: routeWithWeather
+          },
+          timestamp: new Date().toISOString()
+        };
+
+        console.log('路线规划处理完成:', response);
+        return response;
       }
-
-      // 获取起点和终点的天气信息
-      const originWeather = await this.getWeatherByCity(origin);
-      const destinationWeather = await this.getWeatherByCity(destination);
-      // 路线规划并获取沿途天气
-      const routeWithWeather = await this.getRouteWithWeather(origin, destination);
-
-      // 构建响应数据
-      const response = {
-        success: true,
-        message: '路线规划数据接收成功',
-        data: {
-          routeInfo: {
-            origin,
-            destination,
-            departTime: departTime || new Date().toISOString(),
-            vehicleType: vehicleType || '小客车'
-          },
-          weatherInfo: {
-            origin: originWeather,
-            destination: destinationWeather
-          },
-          routePlanning: routeWithWeather
-        },
-        timestamp: new Date().toISOString()
-      };
-
-      console.log('路线规划处理完成:', response);
-      return response;
 
     } catch (error) {
       console.error('路线规划处理失败:', error.message);

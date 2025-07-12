@@ -193,7 +193,8 @@ app.get('/api/weather/route', weatherController.getRouteWithWeather.bind(weather
 app.post('/api/plan', async (req, res) => {
   try {
     const routeData = req.body;
-    console.log('收到前端路线规划请求:', routeData);
+    console.log('收到前端路线规划请求:');
+    console.dir(routeData, { depth: null });
     const result = await weatherController.handleRoutePlanning(routeData);
     
     if (result.success) {

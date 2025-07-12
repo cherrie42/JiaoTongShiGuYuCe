@@ -123,7 +123,7 @@ const planRoutes = () => {
                     if (results.length) {
                       routes.value = results
                       drawRoutes(results)
-                      await sendRouteDataToBackend(form.value.origin, form.value.destination, departTime, form.value.vehicleType)
+                      await sendRouteDataToBackend(form.value.origin, form.value.destination, departTime, form.value.vehicleType, results)
                       ElMessage.success(`共获取 ${results.length} 条不同策略路线`)
                       canPredict.value = true // ✅ 启用按钮
                     } else {
@@ -143,6 +143,80 @@ const planRoutes = () => {
         ElMessage.error('无法解析起点地址')
         canPredict.value = false // ✅ 禁用按钮
       }
+    })
+  })
+}
+
+// 将路径平均划分为五个途径点
+const generateWaypoints = (routePath) => {
+  if (!routePath || routePath.length < 2) {
+    return []
+  }
+  
+  const waypoints = []
+  const totalPoints = routePath.length
+  const step = Math.floor(totalPoints / 6) // 6个区间，5个途径点
+  
+  for (let i = 1; i <= 5; i++) {
+    const index = Math.floor(i * step)
+    if (index < totalPoints) {
+      waypoints.push({
+        lat: routePath[index].lat,
+        lng: routePath[index].lng
+      })
+    }
+  }
+  
+  return waypoints
+}
+
+// 与后端交互：将起点、终点和出发时间和车辆类型传递给后端
+const sendRouteDataToBackend = async (origin, destination, departTime, vehicleType, routeResults) => {
+  try {
+    // 获取起点和终点的经纬度
+    const originLngLat = await getLocationCoordinates(origin)
+    const destLngLat = await getLocationCoordinates(destination)
+    
+    if (!originLngLat || !destLngLat) {
+      throw new Error('无法获取起点或终点的经纬度')
+    }
+    
+    // 构建三条路径数据
+    const paths = routeResults.map((route, index) => {
+      const routePath = route.steps.flatMap(step => step.path)
+      const waypoints = generateWaypoints(routePath)
+      
+      return {
+        origin: { lat: originLngLat.lat, lng: originLngLat.lng },
+        destination: { lat: destLngLat.lat, lng: destLngLat.lng },
+        departTime: departTime,
+        vehicleType: vehicleType,
+        waypoints: waypoints
+      }
+    })
+    
+    const response = await sendRouteData({ paths })
+    console.log('后端返回:', response.data)
+    ElMessage.success('路线数据已发送到后端')
+  } catch (error) {
+    console.error('请求失败:', error)
+    ElMessage.error('数据发送失败')
+  }
+}
+
+// 获取地址的经纬度坐标
+const getLocationCoordinates = (address) => {
+  return new Promise((resolve, reject) => {
+    AMap.plugin(['AMap.Geocoder'], () => {
+      const geocoder = new AMap.Geocoder()
+      geocoder.getLocation(address, (status, result) => {
+        if (status === 'complete' && result.geocodes.length) {
+          const location = result.geocodes[0].location
+          resolve({ lat: location.lat, lng: location.lng })
+        } else {
+          reject(new Error(`无法解析地址: ${address}`))
+        }
+      })
     })
   })
 }
@@ -169,22 +243,6 @@ const drawRoutes = (routeList) => {
   if (routePolylines.length) map.setFitView(routePolylines)
 }
 
-
-// 与后端交互：将起点、终点和出发时间和车辆类型传递给后端
-const sendRouteDataToBackend = async (origin, destination, departTime, vehicleType) => {
-  try {
-    const response = await sendRouteData({
-      origin,
-      destination,
-      departTime,
-      vehicleType
-    })
-    console.log('后端返回:', response.data)
-  } catch (error) {
-    console.error('请求失败:', error)
-    ElMessage.error('数据发送失败')
-  }
-}
 
 const goToPrediction = () => {
   router.push({
