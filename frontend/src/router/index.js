@@ -8,8 +8,8 @@ const AccidentPrediction = () => import('@/views/AccidentPrediction.vue')
 const DataAnalysis = () => import('@/views/DataAnalysis.vue')
 const RoutePlanning = () => import('@/views/RoutePlanning.vue')
 const LoginRegister = () => import('@/views/LoginRegister.vue')
-const UserManagement = () => import('@/views/UserManagement.vue') // ✅ 用户管理页面
-const AiChat = () => import('@/views/AiChat.vue') // ✅ AI聊天页面
+const UserManagement = () => import('@/views/UserManagement.vue') // 用户管理页面
+const AiChat = () => import('@/views/AiChat.vue') // AI聊天页面
 
 const routes = [
   {
@@ -67,6 +67,10 @@ const routes = [
 ]
 
 const router = createRouter({
+
+
+
+  
   history: createWebHistory(),
   routes
 })

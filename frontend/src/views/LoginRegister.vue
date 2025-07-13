@@ -38,8 +38,28 @@
           </template>
 
           <el-form-item label="邮箱" prop="email">
-            <el-input v-model="form.email" placeholder="请输入邮箱" />
+            <el-input
+              v-model="form.email"
+              placeholder="请输入邮箱"
+              style="width: calc(100% - 120px);"
+            />
+            <el-button
+              v-if="mode === 'register'"
+              :disabled="sendCodeLoading || countdown > 0"
+              @click="sendCode"
+              size="small"
+              style="margin-left: 8px; width: 100px;"
+            >
+              <template v-if="countdown === 0">发送验证码</template>
+              <template v-else>{{ countdown }} 秒后重发</template>
+            </el-button>
           </el-form-item>
+
+          <template v-if="mode === 'register'">
+            <el-form-item label="验证码" prop="code">
+              <el-input v-model="form.code" placeholder="请输入验证码" />
+            </el-form-item>
+          </template>
 
           <el-form-item label="密码" prop="password">
             <el-input
@@ -74,11 +94,7 @@
         </el-form>
       </transition>
 
-      <el-button
-        type="text"
-        class="enter-app-btn"
-        @click="enterApp"
-      >
+      <el-button type="text" class="enter-app-btn" @click="enterApp">
         直接进入系统 &raquo;
       </el-button>
     </div>
@@ -89,16 +105,20 @@
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { login, register } from '@/api/user'
+import { login, register, sendVerificationCode } from '@/api/user'
 
 const mode = ref('login') // login or register
 const loading = ref(false)
+const sendCodeLoading = ref(false)
+const countdown = ref(0)
+let timer = null
 
 const formRef = ref(null)
 
 const form = ref({
   username: '',
   email: '',
+  code: '',           // 这里改成 code
   password: '',
   confirmPassword: ''
 })
@@ -115,6 +135,9 @@ const rules = {
       message: '请输入正确的邮箱地址',
       trigger: ['blur', 'change']
     }
+  ],
+  code: [               // 这里也改成 code
+    { required: true, message: '请输入验证码', trigger: 'blur' }
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
@@ -143,9 +166,43 @@ const getRules = computed(() => {
       password: rules.password
     }
   } else {
-    return rules
+    return {
+      username: rules.username,
+      email: rules.email,
+      code: rules.code,          // 这里改成 code
+      password: rules.password,
+      confirmPassword: rules.confirmPassword
+    }
   }
 })
+
+// 发送验证码函数
+const sendCode = async () => {
+  if (!form.value.email) {
+    ElMessage.warning('请先输入邮箱')
+    return
+  }
+  sendCodeLoading.value = true
+  try {
+    await sendVerificationCode({ email: form.value.email })
+    ElMessage.success('验证码发送成功，请注意查收邮箱')
+    startCountdown()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '验证码发送失败')
+  } finally {
+    sendCodeLoading.value = false
+  }
+}
+
+const startCountdown = () => {
+  countdown.value = 60
+  timer = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0) {
+      clearInterval(timer)
+    }
+  }, 1000)
+}
 
 const submitForm = () => {
   formRef.value.validate(async (valid) => {
@@ -162,7 +219,12 @@ const submitForm = () => {
         router.push('/home')
       } else {
         console.log('准备调用注册接口', form.value)
-        await register({ username: form.value.username, email: form.value.email, password: form.value.password })
+        await register({
+          username: form.value.username,
+          email: form.value.email,
+          password: form.value.password,
+          code: form.value.code          // 这里改成 code
+        })
         ElMessage.success('注册成功！请登录')
         mode.value = 'login'
       }
@@ -297,31 +359,26 @@ const enterApp = () => {
 /* 动画 */
 .fade-slide-enter-active,
 .fade-slide-leave-active {
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.5s ease;
 }
-
-.fade-slide-enter-from {
-  opacity: 0;
-  transform: translateY(20px);
-}
-
+.fade-slide-enter-from,
 .fade-slide-leave-to {
   opacity: 0;
-  transform: translateY(-20px);
+  transform: translateX(20px);
 }
 
-/* 直接进入系统 按钮样式 */
 .enter-app-btn {
+  margin-top: 16px;
   display: block;
-  margin: 12px auto 0;
-  color: #eaebf0;
-  font-weight: 600;
+  width: 100%;
+  font-size: 16px;
+  color: #a6c0e3;
+  text-align: center;
   cursor: pointer;
   transition: color 0.3s;
-  font-size: 16px;
 
   &:hover {
-    color: #4056b2;
+    color: #7efff9;
   }
 }
 </style>
