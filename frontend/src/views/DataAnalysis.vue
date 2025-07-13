@@ -50,6 +50,7 @@
 import { onMounted, ref } from 'vue'
 import * as echarts from 'echarts'
 import { ElMessage } from 'element-plus'
+import { getRouteDataFromStorage } from '@/api/route'
 
 const riskChart = ref(null)
 let riskChartInstance = null
@@ -128,36 +129,23 @@ const initChart = (routePoints) => {
   riskChartInstance.setOption(option)
 }
 
-// 模拟数据
-const mockFetchRiskData = () => {
-  const route = [
-    { lng: 116.391, lat: 39.907, risk: 0.2 },
-    { lng: 116.392, lat: 39.908, risk: 0.4 },
-    { lng: 116.393, lat: 39.909, risk: 0.8 },
-    { lng: 116.394, lat: 39.910, risk: 0.6 },
-    { lng: 116.395, lat: 39.911, risk: 0.3 }
-  ]
-
-  highRiskPoints.value = [
-    {
-      lng: 116.393,
-      lat: 39.909,
-      risk: 0.8,
-      description: '急转弯 + 路况不佳',
-      suggestion: '建议减速慢行'
-    }
-  ]
-
-  summary.value = {
-    start: '北京市东城区',
-    end: '北京市朝阳区',
-    maxRisk: 0.8,
-    avgRisk: 0.46,
-    suggestion: '建议避开夜间高峰通行'
+// 从 localStorage 获取数据
+const loadRouteRiskData = () => {
+  const routeData = getRouteDataFromStorage()
+  
+  if (!routeData || !routeData.routeRisks || routeData.routeRisks.length === 0) {
+    ElMessage.error('未找到路线风险数据，请先进行路线规划')
+    return
   }
 
-  initMap(route)
-  initChart(route)
+  // 使用第一条路线的风险数据
+  const routeRisk = routeData.routeRisks[0]
+  
+  highRiskPoints.value = routeRisk.highRiskPoints || []
+  summary.value = routeRisk.summary || {}
+
+  initMap(routeRisk.route)
+  initChart(routeRisk.route)
 }
 
 onMounted(() => {
@@ -168,7 +156,7 @@ onMounted(() => {
     return
   }
 
-  mockFetchRiskData()
+  loadRouteRiskData()
 })
 </script>
 

@@ -57,7 +57,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute } from 'vue-router'
-import { getRoutePrediction } from '@/api/route'
+import { getRouteDataFromStorage } from '@/api/route'
 
 const route = useRoute()
 const routeResults = ref([])
@@ -113,29 +113,19 @@ async function drawRouteOnMap(cities) {
 }
 
 onMounted(() => {
-  const start = route.query.origin || route.query.start
-  const end = route.query.destination || route.query.end
-
-  if (!start || !end) {
-    ElMessage.error('缺少起点或终点参数')
+  // 从 localStorage 获取数据
+  const routeData = getRouteDataFromStorage()
+  
+  if (!routeData || !routeData.routes) {
+    ElMessage.error('未找到路线数据，请先进行路线规划')
     return
   }
 
-  getRoutePrediction(start, end)
-    .then(res => {
-      if (res.data.success) {
-        routeResults.value = res.data.routes
-        // 默认画第一条路线
-        if (res.data.routes.length > 0) {
-          drawRouteOnMap(res.data.routes[0].cities)
-        }
-      } else {
-        ElMessage.error(res.data.error || '获取路线预测失败')
-      }
-    })
-    .catch(() => {
-      ElMessage.error('获取路线预测失败')
-    })
+  routeResults.value = routeData.routes
+  // 默认画第一条路线
+  if (routeData.routes.length > 0) {
+    drawRouteOnMap(routeData.routes[0].cities)
+  }
 
   if (!window.AMap) {
     ElMessage.error('高德地图SDK未加载')

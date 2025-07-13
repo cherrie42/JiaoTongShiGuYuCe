@@ -148,53 +148,88 @@ const planRoutes = () => {
 }
 
 // 将路径平均划分为五个途径点
-const generateWaypoints = (routePath) => {
-  if (!routePath || routePath.length < 2) {
-    return []
-  }
-  
-  const waypoints = []
-  const totalPoints = routePath.length
-  const step = Math.floor(totalPoints / 6) // 6个区间，5个途径点
-  
-  for (let i = 1; i <= 5; i++) {
-    const index = Math.floor(i * step)
-    if (index < totalPoints) {
-      waypoints.push({
-        lat: routePath[index].lat,
-        lng: routePath[index].lng
-      })
-    }
-  }
-  
-  return waypoints
-}
+const generateWaypoints = async (routePath) => {
+  if (!routePath || routePath.length < 2) return [];
+  const waypoints = [];
+  const totalPoints = routePath.length;
+  const step = Math.floor(totalPoints / 6); // 6个区间，5个途径点
+  const maxOffset = Math.max(1, Math.floor(totalPoints * 0.05)); // 5%长度，至少1
 
-// 与后端交互：将起点、终点和出发时间和车辆类型传递给后端
+  // 辅助函数：查adcode
+  const fetchAdcode = (lng, lat) => new Promise((resolve) => {
+    AMap.plugin(['AMap.Geocoder'], () => {
+      const geocoder = new AMap.Geocoder();
+      geocoder.getAddress([lng, lat], (status, result) => {
+        if (status === 'complete' && result.regeocode) {
+          resolve(result.regeocode.addressComponent.adcode);
+        } else {
+          resolve(null);
+        }
+      });
+    });
+  });
+
+  for (let i = 1; i <= 5; i++) {
+    let index = Math.floor(i * step);
+    if (index >= totalPoints) index = totalPoints - 1;
+    let point = routePath[index];
+    let adcode = await fetchAdcode(point.lng, point.lat);
+
+    // 如果查不到，前后偏移找
+    if (!adcode) {
+      let found = false;
+      for (let offset = 1; offset <= maxOffset; offset++) {
+        // 向前
+        if (index - offset >= 0) {
+          const prev = routePath[index - offset];
+          adcode = await fetchAdcode(prev.lng, prev.lat);
+          if (adcode) {
+            point = prev;
+            found = true;
+            break;
+          }
+        }
+        // 向后
+        if (index + offset < totalPoints) {
+          const next = routePath[index + offset];
+          adcode = await fetchAdcode(next.lng, next.lat);
+          if (adcode) {
+            point = next;
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found) adcode = '未知';
+    }
+
+    waypoints.push({ adcode, lat: point.lat, lng: point.lng });
+  }
+  return waypoints;
+};
+
+// 与后端交互：将起点、终点和出发时间、车辆类型和道路信息传递给后端
 const sendRouteDataToBackend = async (origin, destination, departTime, vehicleType, routeResults) => {
   try {
-    // 获取起点和终点的经纬度
-    const originLngLat = await getLocationCoordinates(origin)
-    const destLngLat = await getLocationCoordinates(destination)
-    
-    if (!originLngLat || !destLngLat) {
+    // 获取起点和终点的经纬度和adcode
+    const originInfo = await getLocationCoordinates(origin)
+    const destInfo = await getLocationCoordinates(destination)
+    if (!originInfo || !destInfo) {
       throw new Error('无法获取起点或终点的经纬度')
     }
-    
     // 构建三条路径数据
-    const paths = routeResults.map((route, index) => {
+    const paths = []
+    for (const route of routeResults) {
       const routePath = route.steps.flatMap(step => step.path)
-      const waypoints = generateWaypoints(routePath)
-      
-      return {
-        origin: { lat: originLngLat.lat, lng: originLngLat.lng },
-        destination: { lat: destLngLat.lat, lng: destLngLat.lng },
+      const waypoints = await generateWaypoints(routePath)
+      paths.push({
+        origin: originInfo,
+        destination: destInfo,
         departTime: departTime,
         vehicleType: vehicleType,
         waypoints: waypoints
-      }
-    })
-    
+      })
+    }
     const response = await sendRouteData({ paths })
     console.log('后端返回:', response.data)
     ElMessage.success('路线数据已发送到后端')
@@ -204,7 +239,7 @@ const sendRouteDataToBackend = async (origin, destination, departTime, vehicleTy
   }
 }
 
-// 获取地址的经纬度坐标
+// 获取地址的经纬度坐标及地理编码
 const getLocationCoordinates = (address) => {
   return new Promise((resolve, reject) => {
     AMap.plugin(['AMap.Geocoder'], () => {
@@ -212,7 +247,8 @@ const getLocationCoordinates = (address) => {
       geocoder.getLocation(address, (status, result) => {
         if (status === 'complete' && result.geocodes.length) {
           const location = result.geocodes[0].location
-          resolve({ lat: location.lat, lng: location.lng })
+          const adcode = result.geocodes[0].adcode
+          resolve({ lat: location.lat, lng: location.lng, adcode })
         } else {
           reject(new Error(`无法解析地址: ${address}`))
         }

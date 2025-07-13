@@ -3,8 +3,39 @@ const axios = require('axios');
 class WeatherService {
   constructor() {
     // 高德API密钥 - 请替换为你的实际API密钥
-    this.apiKey = 'f9b4a0116c092dc75c2e50cd34746192'; // 请替换为你的高德API密钥
+    this.apiKeys = [
+      'f9b4a0116c092dc75c2e50cd34746192',
+      // 可以添加更多备用key
+    ];
+    this.currentKeyIndex = 0;
     this.baseUrl = 'https://restapi.amap.com/v3';
+    
+    // 缓存机制
+    this.cache = new Map();
+    this.cacheExpiry = 10 * 60 * 1000; // 10分钟缓存
+    
+    // API调用节流 - 增加间隔避免限流
+    this.lastApiCall = 0;
+    this.minInterval = 200; // 最小间隔200ms
+    
+    // 错误计数和重试机制
+    this.errorCounts = new Map();
+    this.maxRetries = 3;
+  }
+
+  /**
+   * 获取当前API密钥
+   */
+  getCurrentApiKey() {
+    return this.apiKeys[this.currentKeyIndex];
+  }
+
+  /**
+   * 切换到下一个API密钥
+   */
+  switchToNextApiKey() {
+    this.currentKeyIndex = (this.currentKeyIndex + 1) % this.apiKeys.length;
+    console.log(`切换到API密钥 ${this.currentKeyIndex + 1}`);
   }
 
   /**
@@ -14,6 +45,261 @@ class WeatherService {
    */
   delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * API调用节流
+   */
+  async throttleApiCall() {
+    const now = Date.now();
+    const timeSinceLastCall = now - this.lastApiCall;
+    
+    if (timeSinceLastCall < this.minInterval) {
+      await this.delay(this.minInterval - timeSinceLastCall);
+    }
+    
+    this.lastApiCall = Date.now();
+  }
+
+  /**
+   * 检查缓存
+   */
+  getFromCache(key) {
+    const cached = this.cache.get(key);
+    if (cached && Date.now() - cached.timestamp < this.cacheExpiry) {
+      return cached.data;
+    }
+    return null;
+  }
+
+  /**
+   * 设置缓存
+   */
+  setCache(key, data) {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * 检查是否为省级adcode
+   */
+  isProvinceAdcode(adcode) {
+    return /^\d{2}0000$/.test(adcode);
+  }
+
+  /**
+   * 检查是否为市级adcode
+   */
+  isCityAdcode(adcode) {
+    return /^\d{4}00$/.test(adcode);
+  }
+
+  /**
+   * 省级或市级adcode降级为区县级
+   */
+  async downgradeAdcode(lat, lng) {
+    try {
+      await this.throttleApiCall();
+      
+      const response = await axios.get(`${this.baseUrl}/geocode/regeo`, {
+        params: {
+          key: this.getCurrentApiKey(),
+          location: `${lng},${lat}`,
+          output: 'json',
+          extensions: 'base'
+        },
+        timeout: 10000 // 10秒超时
+      });
+
+      if (response.data.status === '1' && 
+          response.data.regeocode && 
+          response.data.regeocode.addressComponent) {
+        
+        const addressComponent = response.data.regeocode.addressComponent;
+        // 优先使用区县adcode，如果没有则使用市级
+        const newAdcode = addressComponent.adcode || addressComponent.citycode;
+        
+        if (newAdcode) {
+          console.log(`adcode降级成功: ${lat},${lng} -> ${newAdcode}`);
+          return newAdcode;
+        }
+      }
+    } catch (error) {
+      console.warn(`adcode降级失败: ${lat},${lng}`, error.message);
+    }
+    return null;
+  }
+
+  /**
+   * 获取天气信息（带缓存和错误处理）
+   */
+  async getWeatherInfo(adcode) {
+    const cacheKey = `weather_${adcode}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    let retries = 0;
+    while (retries < this.maxRetries) {
+      try {
+        await this.throttleApiCall();
+        
+        const response = await axios.get(`${this.baseUrl}/weather/weatherInfo`, {
+          params: {
+            key: this.getCurrentApiKey(),
+            city: adcode,
+            extensions: 'base',
+            output: 'json'
+          },
+          timeout: 10000 // 10秒超时
+        });
+
+        if (response.data.status === '1' && response.data.lives && response.data.lives.length > 0) {
+          const weather = response.data.lives[0];
+          const result = {
+            weather: weather.weather,
+            temperature: parseInt(weather.temperature),
+            humidity: parseInt(weather.humidity),
+            windSpeed: this.convertWindPowerToSpeed(weather.windpower),
+            weatherError: null
+          };
+          
+          this.setCache(cacheKey, result);
+          return result;
+        } else {
+          const error = `天气API返回异常 - 状态: ${response.data.status}, 信息: ${response.data.info}, 数据: ${JSON.stringify(response.data)}`;
+          
+          // 如果是QPS超限，切换API密钥并重试
+          if (response.data.infocode === '10021') {
+            this.switchToNextApiKey();
+            retries++;
+            continue;
+          }
+          
+          return {
+            weather: '未知',
+            temperature: null,
+            humidity: null,
+            windSpeed: null,
+            weatherError: error
+          };
+        }
+      } catch (error) {
+        const errorMsg = `天气API请求异常 - ${error.message}`;
+        console.error(errorMsg);
+        
+        // 如果是QPS超限，切换API密钥并重试
+        if (error.response && error.response.data && 
+            error.response.data.infocode === '10021') {
+          this.switchToNextApiKey();
+          retries++;
+          continue;
+        }
+        
+        retries++;
+        if (retries >= this.maxRetries) {
+          return {
+            weather: '未知',
+            temperature: null,
+            humidity: null,
+            windSpeed: null,
+            weatherError: errorMsg
+          };
+        }
+      }
+    }
+    
+    return {
+      weather: '未知',
+      temperature: null,
+      humidity: null,
+      windSpeed: null,
+      weatherError: '重试次数超限'
+    };
+  }
+
+  /**
+   * 获取城市名称（带缓存和错误处理）
+   */
+  async getCityName(adcode) {
+    const cacheKey = `city_${adcode}`;
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    let retries = 0;
+    while (retries < this.maxRetries) {
+      try {
+        await this.throttleApiCall();
+        
+        const response = await axios.get(`${this.baseUrl}/geocode/geo`, {
+          params: {
+            key: this.getCurrentApiKey(),
+            address: adcode,
+            output: 'json'
+          },
+          timeout: 10000 // 10秒超时
+        });
+
+        if (response.data.status === '1' && 
+            response.data.geocodes && 
+            response.data.geocodes.length > 0) {
+          
+          const geocode = response.data.geocodes[0];
+          // 优先使用区县名称，如果没有则使用市级
+          const cityName = geocode.district || geocode.city || geocode.province || '未知';
+          const result = {
+            name: cityName,
+            cityError: null
+          };
+          
+          this.setCache(cacheKey, result);
+          return result;
+        } else {
+          const error = `地理编码API返回异常 - 状态: ${response.data.status}, 信息: ${response.data.info}, 数据: ${JSON.stringify(response.data)}`;
+          
+          // 如果是QPS超限，切换API密钥并重试
+          if (response.data.infocode === '10021') {
+            this.switchToNextApiKey();
+            retries++;
+            continue;
+          }
+          
+          return {
+            name: '未知',
+            cityError: error
+          };
+        }
+      } catch (error) {
+        const errorMsg = `地理编码API请求异常 - ${error.message}`;
+        console.error(errorMsg);
+        
+        // 如果是QPS超限，切换API密钥并重试
+        if (error.response && error.response.data && 
+            error.response.data.infocode === '10021') {
+          this.switchToNextApiKey();
+          retries++;
+          continue;
+        }
+        
+        retries++;
+        if (retries >= this.maxRetries) {
+          return {
+            name: '未知',
+            cityError: errorMsg
+          };
+        }
+      }
+    }
+    
+    return {
+      name: '未知',
+      cityError: '重试次数超限'
+    };
   }
 
   /**
@@ -357,27 +643,38 @@ class WeatherService {
         lnglat = location;
         
         // 使用逆地理编码获取adcode
+        await this.throttleApiCall();
         const geocodeResponse = await axios.get(`${this.baseUrl}/geocode/regeo`, {
           params: {
-            key: this.apiKey,
+            key: this.getCurrentApiKey(),
             location: location,
-            output: 'json'
-          }
+            output: 'json',
+            extensions: 'base'
+          },
+          timeout: 10000
         });
-        if (geocodeResponse.data.status !== '1') {
+        
+        if (geocodeResponse.data.status !== '1' || 
+            !geocodeResponse.data.regeocode || 
+            !geocodeResponse.data.regeocode.addressComponent) {
           throw new Error('逆地理编码失败');
         }
         adcode = geocodeResponse.data.regeocode.addressComponent.adcode;
       } else {
         // 使用地点名称进行地理编码
+        await this.throttleApiCall();
         const geocodeResponse = await axios.get(`${this.baseUrl}/geocode/geo`, {
           params: {
-            key: this.apiKey,
+            key: this.getCurrentApiKey(),
             address: location,
             output: 'json'
-          }
+          },
+          timeout: 10000
         });
-        if (geocodeResponse.data.status !== '1' || !geocodeResponse.data.geocodes.length) {
+        
+        if (geocodeResponse.data.status !== '1' || 
+            !geocodeResponse.data.geocodes || 
+            !geocodeResponse.data.geocodes.length) {
           throw new Error('地理编码失败');
         }
         adcode = geocodeResponse.data.geocodes[0].adcode;
@@ -385,15 +682,20 @@ class WeatherService {
       }
 
       // 2. 获取实时天气
+      await this.throttleApiCall();
       const weatherResponse = await axios.get(`${this.baseUrl}/weather/weatherInfo`, {
         params: {
-          key: this.apiKey,
+          key: this.getCurrentApiKey(),
           city: adcode,
           extensions: 'base',
           output: 'json'
-        }
+        },
+        timeout: 10000
       });
-      if (weatherResponse.data.status !== '1' || !weatherResponse.data.lives.length) {
+      
+      if (weatherResponse.data.status !== '1' || 
+          !weatherResponse.data.lives || 
+          !weatherResponse.data.lives.length) {
         throw new Error('天气获取失败');
       }
       const weather = weatherResponse.data.lives[0];
@@ -434,6 +736,13 @@ class WeatherService {
       };
     } catch (error) {
       console.error('事故概率预测失败:', error.message);
+      
+      // 如果是QPS超限，切换API密钥
+      if (error.response && error.response.data && 
+          error.response.data.infocode === '10021') {
+        this.switchToNextApiKey();
+      }
+      
       return {
         success: false,
         error: error.message
@@ -473,6 +782,124 @@ class WeatherService {
     return 'Dry';
   }
 
+  /**
+   * 路线规划主处理：对每条路线所有节点进行风险和天气评估，返回 routes 和 routeRisks
+   * @param {Object} data - 前端传入的 { paths: [...] }
+   * @returns {Promise<Object>} { success, routes, routeRisks }
+   */
+  async handleRoutePlanning(data) {
+    try {
+      const { paths } = data;
+      if (!Array.isArray(paths)) {
+        return { success: false, error: '请求体格式错误，缺少 paths 数组' };
+      }
+      
+      console.log(`开始处理 ${paths.length} 条路线...`);
+      
+      // 结果容器
+      const routes = [];
+      const routeRisks = [];
+
+      // 处理每条路线
+      for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
+        const pathObj = paths[pathIndex];
+        console.log(`处理第 ${pathIndex + 1} 条路线...`);
+        
+        // 1. 整理所有节点（起点、途经点、终点）
+        const nodes = [pathObj.origin, ...(pathObj.waypoints || []), pathObj.destination];
+        const departTime = pathObj.departTime;
+        const vehicleType = pathObj.vehicleType;
+
+        // 2. 依次获取每个节点的风险和天气
+        const cities = [];
+        const routePoints = [];
+        let maxRisk = 0;
+        let riskSum = 0;
+        let highRiskPoints = [];
+
+        for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
+          const node = nodes[nodeIndex];
+          let { adcode, lat, lng } = node;
+          
+          console.log(`处理节点 ${nodeIndex + 1}/${nodes.length}: ${adcode}, ${lat}, ${lng}`);
+          
+          // 省级或市级adcode降级处理
+          if (this.isProvinceAdcode(adcode) || this.isCityAdcode(adcode)) {
+            console.log(`发现省级或市级adcode: ${adcode}，进行降级...`);
+            const newAdcode = await this.downgradeAdcode(lat, lng);
+            if (newAdcode) {
+              adcode = newAdcode;
+              console.log(`降级成功: ${adcode}`);
+            }
+          }
+
+          // 获取天气信息
+          const weatherInfo = await this.getWeatherInfo(adcode);
+          
+          // 获取城市名称
+          const cityInfo = await this.getCityName(adcode);
+          
+          // 风险预测
+          const location = `${lng},${lat}`;
+          const riskRes = await this.predictAccidentRiskByLocation(location, departTime);
+          const risk = riskRes.success ? riskRes.probability : 0;
+          maxRisk = Math.max(maxRisk, risk);
+          riskSum += risk;
+
+          // route-risk 节点
+          routePoints.push({ adcode, lng, lat, risk });
+
+          // 高风险点
+          if (risk >= 0.7) {
+            highRiskPoints.push({
+              adcode, lng, lat, risk,
+              description: this.generateRiskDescription(risk),
+              suggestion: this.generateRiskSuggestion(risk)
+            });
+          }
+
+          // routes 节点
+          cities.push({
+            adcode,
+            name: cityInfo.name,
+            weather: weatherInfo.weather,
+            temperature: weatherInfo.temperature,
+            humidity: weatherInfo.humidity,
+            windSpeed: weatherInfo.windSpeed,
+            lat,
+            lng,
+            weatherError: weatherInfo.weatherError,
+            cityError: cityInfo.cityError
+          });
+        }
+
+        // 计算平均风险
+        const avgRisk = routePoints.length > 0 ? (riskSum / routePoints.length) : 0;
+        // 路线风险等级
+        const riskLevel = this.calculateRouteRiskLevel(cities);
+        // 路线 summary
+        const summary = {
+          start: cities[0]?.name || '',
+          end: cities[cities.length - 1]?.name || '',
+          maxRisk,
+          avgRisk: Number(avgRisk.toFixed(2)),
+          suggestion: this.generateOverallSuggestion(avgRisk, maxRisk, vehicleType)
+        };
+
+        // 汇总
+        routes.push({ riskLevel, cities });
+        routeRisks.push({ route: routePoints, highRiskPoints, summary });
+        
+        console.log(`第 ${pathIndex + 1} 条路线处理完成，风险等级: ${riskLevel}`);
+      }
+
+      console.log(`所有路线处理完成，共 ${routes.length} 条路线`);
+      return { success: true, routes, routeRisks };
+    } catch (error) {
+      console.error('路线规划处理失败:', error);
+      return { success: false, error: error.message };
+    }
+  }
 
 }
 
