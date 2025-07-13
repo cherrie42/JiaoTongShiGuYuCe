@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
-const WeatherController = require('./controllers/weatherController');
+const WeatherService = require('./services/weatherService');
 const ModelTrainer = require('./model/trainModel');
 
 
@@ -179,15 +179,7 @@ app.get('/api/model/importance', async (req, res) => {
 });
 
 // 天气相关接口
-const weatherController = new WeatherController();
-// 根据城市名称获取天气信息
-app.get('/api/weather/city', weatherController.getWeatherByCity.bind(weatherController));
-
-// 获取实时天气信息
-app.get('/api/weather/live', weatherController.getLiveWeatherByCity.bind(weatherController));
-
-// 路线规划并获取沿途天气信息
-app.get('/api/weather/route', weatherController.getRouteWithWeather.bind(weatherController));
+const weatherService = new WeatherService();
 
 // 处理路线规划请求
 app.post('/api/plan', async (req, res) => {
@@ -195,7 +187,7 @@ app.post('/api/plan', async (req, res) => {
     const routeData = req.body;
     console.log('收到前端路线规划请求:');
     console.dir(routeData, { depth: null });
-    const result = await weatherController.handleRoutePlanning(routeData);
+    const result = await weatherService.handleRoutePlanning(routeData);
     
     if (result.success) {
       res.json(result);
@@ -211,12 +203,6 @@ app.post('/api/plan', async (req, res) => {
     });
   }
 });
-
-// 获取路线风险分析数据
-app.get('/api/route-risk', weatherController.getRouteRiskAnalysis.bind(weatherController));
-
-// 获取路线规划及风险预测信息
-app.get('/api/predict/routes', weatherController.getRoutePrediction.bind(weatherController));
 
 const PORT = 3001;
 app.listen(PORT, () => {
