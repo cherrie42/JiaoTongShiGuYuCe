@@ -1,136 +1,106 @@
-# 交通事故预测系统
+# 交通事故预测系统（JiaoTongShiGuYuCe）
 
 ## 项目简介
-本项目是一个基于 Node.js + Vue3 + TensorFlow.js 的交通事故风险预测系统，支持数据管理、模型训练、事故风险预测等功能。后端已弃用 tfjs-node，完全基于纯 JS 版本 tfjs，跨平台兼容性更好。
-
----
+本项目是一个基于机器学习和高德地图的交通事故预测与路线风险分析平台，支持路线规划、事故风险预测、数据管理、AI智能助手等功能，适用于交通安全分析、智能出行辅助等场景。
 
 ## 主要功能
-- 交通事故数据管理与分析
-- 交通事故风险预测（支持批量与单条预测）
-- 支持自定义模型训练，自动划分训练集/测试集
-- 前后端分离，API接口清晰
-- 支持自动参数调整（EarlyStopping、ReduceLROnPlateau）
+- 路线规划与多策略推荐
+- 路线风险分析与可视化
+- 交通事故风险预测
+- 历史事故数据管理与分析
+- 用户注册/登录/管理
+- AI 智能助手（问答聊天）
 
----
-
-## 目录结构
+## 项目结构
 ```
 JiaoTongShiGuYuCe/
-├── backend/                    # Node.js + tfjs 后端服务
-│   ├── controllers/            # 控制器层
-│   │   ├── predictController.js    # 预测控制器
-│   │   └── weatherController.js    # 天气控制器
-│   ├── routes/                 # 路由层
-│   │   ├── predict.js          # 预测相关路由
-│   │   ├── roadInfo.js         # 道路信息路由
-│   │   ├── structure.js        # 结构相关路由
-│   │   └── weather.js          # 天气相关路由
-│   ├── services/               # 服务层
-│   ├── utils/                  # 工具函数
-│   ├── model/                  # 模型相关
-│   ├── data/                   # 数据文件
-│   ├── trained_model/          # 训练好的模型存储
-│   ├── aiModel.js              # AI模型核心类
-│   ├── trainModel.js           # 模型训练脚本
-│   ├── testAPI.js              # API测试脚本
-│   ├── index.js                # 主入口文件
-│   ├── app.js                  # Express应用配置
-│   ├── dbConfig.js             # 数据库配置
-│   └── package.json            # 后端依赖配置
-├── frontend/                   # Vue3 前端页面
+├── backend/           # 后端 Node.js 服务
+│   ├── AI/            # AI 聊天相关模块
+│   ├── accident-management/ # 事故管理子模块
+│   ├── controllers/   # 控制器
+│   ├── data/          # 数据文件
+│   ├── model/         # 机器学习模型与训练
+│   ├── routes/        # 路由
+│   ├── services/      # 业务服务
+│   ├── test/          # 测试脚本
+│   ├── utils/         # 工具函数
+│   ├── index.js       # 后端主入口
+│   └── ...
+├── frontend/          # 前端 Vue3 + Vite 项目
 │   ├── src/
-│   │   ├── views/              # 页面组件
-│   │   │   ├── Home.vue            # 首页
-│   │   │   ├── Dashboard.vue       # 仪表板
-│   │   │   ├── DataManagement.vue  # 数据管理
-│   │   │   ├── DataAnalysis.vue    # 数据分析
-│   │   │   ├── AccidentPrediction.vue  # 事故预测
-│   │   │   ├── RoutePlanning.vue   # 路线规划
-│   │   │   └── LoginRegister.vue   # 登录注册
-│   │   ├── api/                # API接口
-│   │   ├── router/             # 路由配置
-│   │   ├── utils/              # 工具函数
-│   │   ├── App.vue             # 根组件
-│   │   └── main.js             # 入口文件
-│   ├── index.html              # HTML模板
-│   ├── vite.config.js          # Vite配置
-│   └── package.json            # 前端依赖配置
-├── .gitignore                  # Git忽略文件
-├── package.json                # 根目录依赖配置
-└── README.md                   # 项目说明文档
+│   │   ├── api/       # 前端接口
+│   │   ├── views/     # 页面组件
+│   │   ├── router/    # 路由
+│   │   └── ...
+│   ├── index.html
+│   └── ...
+└── README.md
 ```
-
----
 
 ## 环境依赖
 - Node.js >= 16.x
 - npm >= 8.x
-- MySQL 数据库
-
----
+- Python >= 3.8（如需模型训练）
+- 依赖包见各自 package.json/requirements.txt
 
 ## 安装依赖
-### 后端
+### 后端依赖
 ```bash
 cd backend
 npm install
 ```
 
-### 前端
+### 前端依赖
 ```bash
 cd frontend
 npm install
 ```
 
----
+### AI模块依赖（如有）
+```bash
+cd backend/AI
+npm install
+```
 
-## 启动项目
-### 启动后端
+## 启动指令
+### 启动后端服务（默认端口3001）
 ```bash
 cd backend
-node index.js
+npm start
 ```
-默认监听 3001 端口。
 
-### 启动前端
+### 启动前端服务（默认端口3000）
 ```bash
 cd frontend
 npm run dev
 ```
-默认监听 3000 端口。
 
----
+### 启动AI聊天模块（如监听4000端口）
+```bash
+cd backend/AI
+node spark-ws-client.js  # 或 node testclient.js
+```
+
+> 若AI聊天端口有变，请同步修改前端 `src/views/AiChat.vue` 里的请求地址。
 
 ## 模型训练与测试
 ### 训练模型
 ```bash
-cd backend
-node trainModel.js --db 5000   # 从数据库随机抽取5000条数据训练
+cd backend/model
+python model.py  # 或 python trainModel.py
 ```
-- 支持自定义数据量，自动8:2划分训练集/测试集。
-- 训练过程自动输出标签分布、训练进度、测试集评估等。
 
-### 批量预测测试
+### 测试模型
 ```bash
-cd backend
-node testAPI.js
+cd backend/model
+python model.py  # 或使用 testAPI.js 进行接口测试
 ```
-- 可模拟多组未知数据，查看模型预测效果。
+
+## 其他说明
+- 前后端接口通过 Vite 代理 `/api` 实现联调，具体见 `frontend/vite.config.js`。
+- 事故数据样例见 `backend/data/traffic_accidents_sample.xlsx`。
+- 邮件验证码、AI 聊天等功能需配置相关第三方服务。
+- 如需部署生产环境，请根据实际情况调整端口、数据库、环境变量等配置。
 
 ---
-
-## 常见问题
-- **node_modules 不要提交到 git 仓库**，已通过 .gitignore 忽略。
-- 后端已弃用 tfjs-node，兼容性更好但训练速度略慢。
-- 如需更高性能，可考虑 Python 端模型或云端部署。
-
----
-
-## 贡献与交流
-如有建议、Bug 或合作意向，欢迎提 Issue 或 PR！
-
----
-
-## License
-MIT 
+如有问题欢迎提 issue 或联系开发者。 
