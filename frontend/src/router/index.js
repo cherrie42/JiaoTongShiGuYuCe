@@ -8,8 +8,8 @@ const AccidentPrediction = () => import('@/views/AccidentPrediction.vue')
 const DataAnalysis = () => import('@/views/DataAnalysis.vue')
 const RoutePlanning = () => import('@/views/RoutePlanning.vue')
 const LoginRegister = () => import('@/views/LoginRegister.vue')
-const UserManagement = () => import('@/views/UserManagement.vue') // ✅ 新增用户管理页面
-const AIChat = () => import('@/views/AIChat.vue') // 新增：AI聊天页面
+const UserManagement = () => import('@/views/UserManagement.vue') // 用户管理页面
+const AiChat = () => import('@/views/AiChat.vue') // AI聊天页面
 
 const routes = [
   {
@@ -49,7 +49,8 @@ const routes = [
       {
         path: 'route-planning',
         name: 'RoutePlanning',
-        component: RoutePlanning
+        component: RoutePlanning,
+        meta: { title: '路线规划' } // ✅ 保留 meta 信息
       },
       {
         path: 'user-management',
@@ -66,6 +67,10 @@ const routes = [
 ]
 
 const router = createRouter({
+
+
+
+  
   history: createWebHistory(),
   routes
 })

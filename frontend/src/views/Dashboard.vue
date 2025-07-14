@@ -1,5 +1,12 @@
 <template>
   <div class="home">
+    <!-- 粒子背景 -->
+    <Particles
+      id="tsparticles"
+      :options="particlesOptions"
+      class="particles-bg"
+    />
+
     <div class="welcome-header">
       <h1 class="welcome-title">交通事故预测系统</h1>
       <p class="welcome-subtitle">基于机器学习的智能预测分析平台</p>
@@ -30,9 +37,10 @@
 </template>
 
 <script setup>
+import { reactive } from 'vue'
 import { DataLine, TrendCharts, PieChart, Location } from '@element-plus/icons-vue'
 
-// 路径都加上 /home 前缀，和路由保持一致
+// 卡片数据
 const cards = [
   {
     title: '数据管理',
@@ -59,47 +67,129 @@ const cards = [
     path: '/home/analysis'
   }
 ]
+
+// 粒子背景配置
+const particlesOptions = reactive({
+  background: {
+    color: '#0f0f1c'
+  },
+  fpsLimit: 60,
+  interactivity: {
+    events: {
+      onHover: {
+        enable: true,
+        mode: 'repulse'
+      },
+      resize: true
+    },
+    modes: {
+      repulse: {
+        distance: 100,
+        duration: 0.4
+      }
+    }
+  },
+  particles: {
+    color: { value: '#00eaff' },
+    links: {
+      color: '#00eaff',
+      distance: 150,
+      enable: true,
+      opacity: 0.3,
+      width: 1
+    },
+    collisions: { enable: false },
+    move: {
+      enable: true,
+      speed: 1.5,
+      direction: 'none',
+      outModes: 'bounce'
+    },
+    number: {
+      density: {
+        enable: true,
+        area: 800
+      },
+      value: 40
+    },
+    opacity: { value: 0.5 },
+    shape: { type: 'circle' },
+    size: { value: { min: 1, max: 3 } }
+  },
+  detectRetina: true
+})
 </script>
 
 <style scoped lang="scss">
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap');
+
 .home {
   min-height: 100vh;
   padding: 30px 40px;
-  background: #f5f7fa;
+  /* background: #0f0f1c;  删除纯色背景 */
+  
+  background-image: url('@/image/3.jpg');
+  background-size: cover;      /* 图片覆盖整个容器 */
+  background-position: center; /* 图片居中显示 */
+  background-repeat: no-repeat;
+  
+  font-family: 'Orbitron', sans-serif;
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
   box-sizing: border-box;
+}
+
+
+.particles-bg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
 }
 
 .welcome-header {
   text-align: center;
   margin-bottom: 40px;
+  position: relative;
+  z-index: 2;
 
   .welcome-title {
     font-size: 2.4em;
-    color: #409eff;
+    color: #00eaff;
+    text-shadow: 0 0 10px #00eaff;
     margin-bottom: 10px;
+    animation: fadeInDown 1s ease;
   }
 
   .welcome-subtitle {
     font-size: 1.2em;
-    color: #666;
+    color: #aaa;
+    animation: fadeIn 1.5s ease;
   }
 }
 
 .feature-cards {
   width: 100%;
+  position: relative;
+  z-index: 2;
 }
 
 .feature-card {
-  background: white;
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(0, 234, 255, 0.2);
+  border-radius: 16px;
   padding: 20px;
   height: 100%;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 0 12px rgba(0, 234, 255, 0.05);
+  backdrop-filter: blur(10px);
+  transition: transform 0.4s ease, box-shadow 0.4s ease;
   cursor: pointer;
 
   &:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 0 25px rgba(0, 234, 255, 0.3);
+    border-color: rgba(0, 234, 255, 0.6);
   }
 
   .card-body {
@@ -110,25 +200,48 @@ const cards = [
 
     .card-icon {
       margin-bottom: 15px;
-      color: #409eff;
+      color: #00eaff;
       transition: transform 0.3s;
 
       &:hover {
-        transform: rotate(10deg);
+        transform: scale(1.2) rotate(8deg);
       }
     }
 
     h3 {
       font-size: 1.2em;
-      color: #333;
+      color: #e0f7ff;
       margin-bottom: 8px;
     }
 
     p {
       font-size: 0.95em;
-      color: #666;
+      color: #ccc;
       line-height: 1.4;
     }
+  }
+}
+
+/* 动画关键帧 */
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

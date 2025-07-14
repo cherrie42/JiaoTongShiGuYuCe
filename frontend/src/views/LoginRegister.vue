@@ -1,7 +1,7 @@
 <template>
   <div class="auth-wrapper">
     <!-- ✅ 添加 Logo 图片 -->
-  <img src="@/image/logo.png" alt="Logo" class="page-logo" />
+    <img src="@/image/logo.png" alt="Logo" class="page-logo" />
 
     <div class="auth-card" :class="{ 'register-mode': mode === 'register' }">
       <div class="toggle-btns">
@@ -10,7 +10,6 @@
           @click="mode = 'login'"
           aria-label="登录"
         >
-        
           登录
         </button>
         <button
@@ -26,7 +25,7 @@
         <el-form
           :key="mode"
           :model="form"
-          :rules="rules"
+          :rules="getRules"
           ref="formRef"
           label-position="top"
           class="auth-form"
@@ -39,8 +38,37 @@
           </template>
 
           <el-form-item label="邮箱" prop="email">
-            <el-input v-model="form.email" placeholder="请输入邮箱" />
-          </el-form-item>
+  <template v-if="mode === 'register'">
+    <el-input
+      v-model="form.email"
+      placeholder="请输入邮箱"
+      style="width: calc(100% - 120px);"
+    />
+    <el-button
+      :disabled="sendCodeLoading || countdown > 0"
+      @click="sendCode"
+      size="small"
+      style="margin-left: 8px; width: 100px;"
+    >
+      <template v-if="countdown === 0">发送验证码</template>
+      <template v-else>{{ countdown }} 秒后重发</template>
+    </el-button>
+  </template>
+  <template v-else>
+    <el-input
+      v-model="form.email"
+      placeholder="请输入邮箱"
+      style="width: 100%;"
+    />
+  </template>
+</el-form-item>
+
+
+          <template v-if="mode === 'register'">
+            <el-form-item label="验证码" prop="code">
+              <el-input v-model="form.code" placeholder="请输入验证码" />
+            </el-form-item>
+          </template>
 
           <el-form-item label="密码" prop="password">
             <el-input
@@ -75,11 +103,7 @@
         </el-form>
       </transition>
 
-      <el-button
-        type="text"
-        class="enter-app-btn"
-        @click="enterApp"
-      >
+      <el-button type="text" class="enter-app-btn" @click="enterApp">
         直接进入系统 &raquo;
       </el-button>
     </div>
@@ -87,18 +111,23 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
+import { login, register, sendVerificationCode } from '@/api/user'
 
 const mode = ref('login') // login or register
 const loading = ref(false)
+const sendCodeLoading = ref(false)
+const countdown = ref(0)
+let timer = null
 
 const formRef = ref(null)
 
 const form = ref({
   username: '',
   email: '',
+  code: '',           // 这里改成 code
   password: '',
   confirmPassword: ''
 })
@@ -116,6 +145,9 @@ const rules = {
       trigger: ['blur', 'change']
     }
   ],
+  code: [               // 这里也改成 code
+    { required: true, message: '请输入验证码', trigger: 'blur' }
+  ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码长度至少6位', trigger: 'blur' }
@@ -123,9 +155,11 @@ const rules = {
   confirmPassword: [
     { required: true, message: '请确认密码', trigger: 'blur' },
     {
-      validator: (rule, value) => {
+      validator(rule, value, callback) {
         if (value !== form.value.password) {
-          return new Error('两次密码输入不一致')
+          callback(new Error('两次密码输入不一致'))
+        } else {
+          callback()
         }
       },
       trigger: 'blur'
@@ -133,21 +167,82 @@ const rules = {
   ]
 }
 
-const submitForm = () => {
-  formRef.value.validate((valid) => {
-    if (!valid) return
+// 根据当前模式动态返回规则
+const getRules = computed(() => {
+  if (mode.value === 'login') {
+    return {
+      email: rules.email,
+      password: rules.password
+    }
+  } else {
+    return {
+      username: rules.username,
+      email: rules.email,
+      code: rules.code,          // 这里改成 code
+      password: rules.password,
+      confirmPassword: rules.confirmPassword
+    }
+  }
+})
 
+// 发送验证码函数
+const sendCode = async () => {
+  if (!form.value.email) {
+    ElMessage.warning('请先输入邮箱')
+    return
+  }
+  sendCodeLoading.value = true
+  try {
+    await sendVerificationCode({ email: form.value.email })
+    ElMessage.success('验证码发送成功，请注意查收邮箱')
+    startCountdown()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '验证码发送失败')
+  } finally {
+    sendCodeLoading.value = false
+  }
+}
+
+const startCountdown = () => {
+  countdown.value = 60
+  timer = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0) {
+      clearInterval(timer)
+    }
+  }, 1000)
+}
+
+const submitForm = () => {
+  formRef.value.validate(async (valid) => {
+    if (!valid) {
+      console.log('校验不通过')
+      return
+    }
     loading.value = true
-    setTimeout(() => {
-      loading.value = false
+    try {
       if (mode.value === 'login') {
+        const res = await login({ email: form.value.email, password: form.value.password })
         ElMessage.success('登录成功！')
-        // TODO: 登录逻辑
+        localStorage.setItem('token', res.token)
+        router.push('/home')
       } else {
-        ElMessage.success('注册成功！')
-        // TODO: 注册逻辑
+        console.log('准备调用注册接口', form.value)
+        await register({
+          username: form.value.username,
+          email: form.value.email,
+          password: form.value.password,
+          code: form.value.code          // 这里改成 code
+        })
+        ElMessage.success('注册成功！请登录')
+        mode.value = 'login'
       }
-    }, 1200)
+    } catch (error) {
+      console.error('请求失败', error)
+      ElMessage.error(error.response?.data?.message || '请求失败，请稍后重试')
+    } finally {
+      loading.value = false
+    }
   })
 }
 
@@ -175,7 +270,7 @@ const enterApp = () => {
     content: "";
     position: absolute;
     inset: 0;
-    background-color: rgba(33, 88, 170, 0.315); // 黑色半透明遮罩，可调节透明度
+    background-color: rgba(33, 88, 170, 0.315);
     z-index: 1;
   }
 
@@ -185,7 +280,6 @@ const enterApp = () => {
     z-index: 2;
   }
 }
-
 
 .auth-card {
   background: #a899f583;
@@ -202,17 +296,15 @@ const enterApp = () => {
 
 .page-logo {
   position: absolute;
-  top: 40px;       // 调整 logo 的顶部距离
+  top: 40px;
   left: 20%;
   transform: translateX(-50%);
-  z-index: 3;      // 确保在遮罩层之上
-  width: 250px;    // 可根据需要调整大小
+  z-index: 3;
+  width: 250px;
   height: auto;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)); // 可选：加阴影更清晰
-  opacity: 0.7;  // 设置透明度
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  opacity: 0.7;
 }
-
-
 
 .toggle-btns {
   display: flex;
@@ -265,8 +357,6 @@ const enterApp = () => {
     }
   }
 
-
-
   .el-button {
     border-radius: 10px;
     font-size: 18px;
@@ -278,31 +368,26 @@ const enterApp = () => {
 /* 动画 */
 .fade-slide-enter-active,
 .fade-slide-leave-active {
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.5s ease;
 }
-
-.fade-slide-enter-from {
-  opacity: 0;
-  transform: translateY(20px);
-}
-
+.fade-slide-enter-from,
 .fade-slide-leave-to {
   opacity: 0;
-  transform: translateY(-20px);
+  transform: translateX(20px);
 }
 
-/* 直接进入系统 按钮样式 */
 .enter-app-btn {
+  margin-top: 16px;
   display: block;
-  margin: 12px auto 0;
-  color: #eaebf0;
-  font-weight: 600;
+  width: 100%;
+  font-size: 16px;
+  color: #a6c0e3;
+  text-align: center;
   cursor: pointer;
   transition: color 0.3s;
-  font-size: 16px;
 
   &:hover {
-    color: #4056b2;
+    color: #7efff9;
   }
 }
 </style>
