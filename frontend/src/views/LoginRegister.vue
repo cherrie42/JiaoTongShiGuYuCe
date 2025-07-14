@@ -38,22 +38,31 @@
           </template>
 
           <el-form-item label="邮箱" prop="email">
-            <el-input
-              v-model="form.email"
-              placeholder="请输入邮箱"
-              style="width: calc(100% - 120px);"
-            />
-            <el-button
-              v-if="mode === 'register'"
-              :disabled="sendCodeLoading || countdown > 0"
-              @click="sendCode"
-              size="small"
-              style="margin-left: 8px; width: 100px;"
-            >
-              <template v-if="countdown === 0">发送验证码</template>
-              <template v-else>{{ countdown }} 秒后重发</template>
-            </el-button>
-          </el-form-item>
+  <template v-if="mode === 'register'">
+    <el-input
+      v-model="form.email"
+      placeholder="请输入邮箱"
+      style="width: calc(100% - 120px);"
+    />
+    <el-button
+      :disabled="sendCodeLoading || countdown > 0"
+      @click="sendCode"
+      size="small"
+      style="margin-left: 8px; width: 100px;"
+    >
+      <template v-if="countdown === 0">发送验证码</template>
+      <template v-else>{{ countdown }} 秒后重发</template>
+    </el-button>
+  </template>
+  <template v-else>
+    <el-input
+      v-model="form.email"
+      placeholder="请输入邮箱"
+      style="width: 100%;"
+    />
+  </template>
+</el-form-item>
+
 
           <template v-if="mode === 'register'">
             <el-form-item label="验证码" prop="code">
