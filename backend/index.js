@@ -196,11 +196,15 @@ app.post('/api/plan', async (req, res) => {
 
     if (result.success) {
       res.json({
-        result
+        code: 200,
+        message: '成功',
+        data: result
       });
     } else {
       res.status(400).json({
-        result
+        code: 400,
+        message: result.error || '失败',
+        data: null
       });
     }
   } catch (error) {

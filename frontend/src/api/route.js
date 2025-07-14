@@ -8,8 +8,8 @@ import request from '@/utils/request'
 export const sendRouteData = (data) => {
   return request.post('/plan', data).then(response => {
     // 将返回的数据存储到 localStorage
-    if (response.data.success) {
-      localStorage.setItem('routeData', JSON.stringify(response.data));
+    if (response.success) {
+      localStorage.setItem('routeData', JSON.stringify(response));
     }
     return response;
   });
