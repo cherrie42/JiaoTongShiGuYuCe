@@ -9,10 +9,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ✅ 注册 /user 路由模块
+const userRouter = require('./routes/user')
+app.use('/user', userRouter)
+
+
 // 配置 MySQL 连接
 const db = mysql.createConnection({
   host: 'localhost',
-  user: 'root', 
+  user: 'root',
   password: 'Vvk@2778',
   database: 'traffic_prediction'
 });
@@ -65,7 +70,7 @@ const initModelTrainer = () => {
 // 加载模型（如果尚未加载）
 const loadModelIfNeeded = async () => {
   const trainer = initModelTrainer();
-  
+
   if (!modelLoaded && trainer.isModelTrained()) {
     try {
       await trainer.loadTrainedModel();
@@ -76,7 +81,7 @@ const loadModelIfNeeded = async () => {
       throw error;
     }
   }
-  
+
   return trainer;
 };
 
@@ -85,7 +90,7 @@ app.get('/api/model/status', (req, res) => {
   try {
     const trainer = initModelTrainer();
     const isTrained = trainer.isModelTrained();
-    
+
     res.json({
       success: true,
       isTrained: isTrained,
@@ -104,7 +109,7 @@ app.post('/api/predict', async (req, res) => {
   try {
     // 加载模型（如果尚未加载）
     const trainer = await loadModelIfNeeded();
-    
+
     // 检查模型是否已训练
     if (!trainer.isModelTrained()) {
       return res.status(400).json({
@@ -134,7 +139,7 @@ app.post('/api/predict', async (req, res) => {
 
     // 进行预测
     const probability = trainer.predictor.predictSingle(data);
-    
+
     res.json({
       success: true,
       probability: probability,  // 事故发生的概率 (0-1)
@@ -156,7 +161,7 @@ app.get('/api/model/importance', async (req, res) => {
   try {
     // 加载模型（如果尚未加载）
     const trainer = await loadModelIfNeeded();
-    
+
     if (!trainer.isModelTrained()) {
       return res.status(400).json({
         success: false,
@@ -188,11 +193,15 @@ app.post('/api/plan', async (req, res) => {
     console.log('收到前端路线规划请求:');
     console.dir(routeData, { depth: null });
     const result = await weatherService.handleRoutePlanning(routeData);
-    
+
     if (result.success) {
-      res.json(result);
+      res.json({
+        result
+      });
     } else {
-      res.status(400).json(result);
+      res.status(400).json({
+        result
+      });
     }
   } catch (error) {
     console.error('路线规划接口错误:', error);

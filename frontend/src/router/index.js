@@ -58,9 +58,9 @@ const routes = [
         component: UserManagement
       },
       {
-        path: 'ai-chat', // 新增：AI聊天路由
-        name: 'AIChat',
-        component: AIChat
+        path: 'ai-chat',
+        name: 'AiChat',
+        component: AiChat
       }
     ]
   }
