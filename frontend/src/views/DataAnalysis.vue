@@ -24,9 +24,65 @@
       <el-col :span="16">
         <el-card class="map-card">
           <template #header>
-            <span>路线风险热力图</span>
+            <div class="card-header" style="display: flex; align-items: center; justify-content: space-between;">
+              <span>路线风险热力图</span>
+              <el-button @click="showIconDialog = true" size="small">自定义标记图标</el-button>
+            </div>
           </template>
           <div id="risk-map" class="map-container"></div>
+          <el-dialog v-model="showIconDialog" title="自定义标记点图标" width="600px">
+            <div class="icon-select-section">
+              <div class="icon-group">
+                <div class="icon-label">起点：</div>
+                <div class="icon-options">
+                  <div
+                    v-for="(icon, idx) in startIcons"
+                    :key="icon"
+                    style="display:inline-block;text-align:center;width:54px;"
+                  >
+                    <img :src="icon" :class="{selected: selectedIcons.start === icon}" @click="selectedIcons.start = icon" />
+                    <div class="icon-label-under">
+                      {{ idx === 0 ? '不显示' : '起点' + idx }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="icon-group">
+                <div class="icon-label">终点：</div>
+                <div class="icon-options">
+                  <div
+                    v-for="(icon, idx) in endIcons"
+                    :key="icon"
+                    style="display:inline-block;text-align:center;width:54px;"
+                  >
+                    <img :src="icon" :class="{selected: selectedIcons.end === icon}" @click="selectedIcons.end = icon" />
+                    <div class="icon-label-under">
+                      {{ idx === 0 ? '不显示' : '终点' + idx }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="icon-group">
+                <div class="icon-label">路径点：</div>
+                <div class="icon-options">
+                  <div
+                    v-for="(icon, idx) in waypointIcons"
+                    :key="icon"
+                    style="display:inline-block;text-align:center;width:54px;"
+                  >
+                    <img :src="icon" :class="{selected: selectedIcons.waypoint === icon}" @click="selectedIcons.waypoint = icon" />
+                    <div class="icon-label-under">
+                      {{ idx === 0 ? '不显示' : '路径点' + idx }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <template #footer>
+              <el-button @click="resetIcons">恢复默认</el-button>
+              <el-button type="primary" @click="saveIcons">保存</el-button>
+            </template>
+          </el-dialog>
         </el-card>
 
         <el-card class="chart-card">
@@ -81,6 +137,117 @@ const selectedRouteIndex = ref(0) // 当前选中的路线索引
 const routeOptions = ref([]) // 路线选项
 const routeData = ref(null) // 存储完整的路线数据
 
+const showIconDialog = ref(false)
+const noneIcon = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII='
+const startIcons = [
+  noneIcon,
+  'https://webapi.amap.com/theme/v1.3/markers/n/start.png',
+  'https://webapi.amap.com/theme/v1.3/markers/n/mark_bs.png'
+]
+const endIcons = [
+  noneIcon,
+  'https://webapi.amap.com/theme/v1.3/markers/n/end.png',
+  'https://webapi.amap.com/theme/v1.3/markers/n/mark_rs.png'
+]
+const waypointIcons = [
+  noneIcon,
+  'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png',
+  'https://webapi.amap.com/theme/v1.3/markers/n/mark_rs.png'
+]
+const defaultIcons = {
+  start: startIcons[1],
+  end: endIcons[1],
+  waypoint: waypointIcons[1]
+}
+const selectedIcons = ref({ ...defaultIcons })
+function saveIcons() {
+  localStorage.setItem('customMarkerIcons', JSON.stringify(selectedIcons.value))
+  showIconDialog.value = false
+  drawAllRoutesOnMap(selectedRouteIndex.value)
+}
+function resetIcons() {
+  selectedIcons.value = { ...defaultIcons }
+  localStorage.removeItem('customMarkerIcons')
+  drawAllRoutesOnMap(selectedRouteIndex.value)
+}
+function getCustomIcons() {
+  const icons = localStorage.getItem('customMarkerIcons')
+  return icons ? JSON.parse(icons) : defaultIcons
+}
+let polylines = []
+let markers = []
+function getPlannedRoutesFromStorage() {
+  const data = localStorage.getItem('plannedRoutes')
+  return data ? JSON.parse(data) : []
+}
+function clearMap() {
+  polylines.forEach(poly => poly.setMap(null))
+  polylines = []
+  markers.forEach(marker => marker.setMap(null))
+  markers = []
+}
+function drawAllRoutesOnMap(selectedIdx = 0) {
+  if (!map) return
+  clearMap()
+  const plannedRoutes = getPlannedRoutesFromStorage()
+  if (!plannedRoutes.length) return
+  const icons = getCustomIcons()
+  // 1. 绘制所有路线
+  plannedRoutes.forEach((route, idx) => {
+    const polyline = new window.AMap.Polyline({
+      path: route,
+      strokeColor: idx === selectedIdx ? '#FF0000' : '#409EFF',
+      strokeWeight: idx === selectedIdx ? 7 : 4,
+      isOutline: true,
+      outlineColor: '#ffeeff',
+      borderWeight: 2,
+      lineJoin: 'round',
+      zIndex: idx === selectedIdx ? 100 : 10
+    })
+    polyline.setMap(map)
+    polylines.push(polyline)
+  })
+  // 2. 标记当前选中路线的关键节点
+  const plannedRoutesArr = plannedRoutes[selectedIdx]
+  if (plannedRoutesArr && plannedRoutesArr.length > 0) {
+    // 起点
+    if (icons.start !== noneIcon) {
+      markers.push(new window.AMap.Marker({
+        position: plannedRoutesArr[0],
+        map,
+        title: '起点',
+        icon: icons.start,
+        zIndex: 200
+      }))
+    }
+    // 终点
+    if (icons.end !== noneIcon) {
+      markers.push(new window.AMap.Marker({
+        position: plannedRoutesArr[plannedRoutesArr.length - 1],
+        map,
+        title: '终点',
+        icon: icons.end,
+        zIndex: 200
+      }))
+    }
+    // 5个均匀分布的路径点
+    const step = Math.floor(plannedRoutesArr.length / 6)
+    if (icons.waypoint !== noneIcon) {
+      for (let i = 1; i <= 5; i++) {
+        const idx = Math.min(i * step, plannedRoutesArr.length - 2)
+        markers.push(new window.AMap.Marker({
+          position: plannedRoutesArr[idx],
+          map,
+          title: `路径点${i}`,
+          icon: icons.waypoint,
+          zIndex: 150
+        }))
+      }
+    }
+    map.setFitView(polylines.concat(markers))
+  }
+}
+
 // 路线切换处理函数
 const handleRouteChange = (index) => {
   if (!routeData.value || !routeData.value.routeRisks || !routeData.value.routeRisks[index]) {
@@ -98,7 +265,12 @@ const handleRouteChange = (index) => {
   if (map) {
     map.destroy()
   }
-  initMap(routeRisk.route)
+  // drawAllRoutesOnMap替代initMap
+  map = new window.AMap.Map('risk-map', {
+    zoom: 13,
+    center: [routeRisk.route[0].lng, routeRisk.route[0].lat]
+  })
+  drawAllRoutesOnMap(index)
   initChart(routeRisk.route)
 }
 
@@ -204,6 +376,10 @@ onMounted(() => {
   }
 
   loadRouteRiskData()
+  // 默认绘制第一条路线
+  setTimeout(() => {
+    drawAllRoutesOnMap(0)
+  }, 300)
 })
 </script>
 
@@ -234,5 +410,32 @@ onMounted(() => {
 
 .route-selector .el-select {
   width: 300px;
+}
+.icon-select-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.icon-label {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.icon-label-under {
+  font-size: 12px;
+  color: #888;
+  text-align: center;
+  margin-top: 2px;
+  height: 18px;
+  line-height: 18px;
+}
+.icon-options {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+}
+.icon-group {
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
 }
 </style>

@@ -220,22 +220,9 @@ class WeatherService {
    * @returns {Promise<Array>} 天气信息数组
    */
   async getWeatherInfoBatch(adcodes) {
-    const results = [];
-
-    for (let i = 0; i < adcodes.length; i++) {
-      const adcode = adcodes[i];
-      console.log(`获取天气信息 ${i + 1}/${adcodes.length}: ${adcode}`);
-
-      const weatherInfo = await this.getWeatherInfo(adcode);
-      results.push(weatherInfo);
-
-      // 每个请求后延迟，避免限流
-      if (i < adcodes.length - 1) {
-        await this.delay(300); // 增加延迟到300ms
-      }
-    }
-
-    return results;
+    // 并发获取天气信息，提升速度
+    const weatherPromises = adcodes.map(adcode => this.getWeatherInfo(adcode));
+    return await Promise.all(weatherPromises);
   }
 
   /**
@@ -805,23 +792,12 @@ class WeatherService {
     // 批量获取天气和城市信息
     const adcodes = processedAdcodes.map(node => node.adcode);
 
-    // 串行处理天气信息，避免限流
+    // 并发处理天气信息，提升速度
     const weatherInfos = await this.getWeatherInfoBatch(adcodes);
 
-    // 串行处理地名信息，避免限流
-    const placeInfos = [];
-    for (let i = 0; i < adcodes.length; i++) {
-      const node = processedAdcodes[i];
-      console.log(`获取地名 ${i + 1}/${adcodes.length}: ${node.lat},${node.lng}`);
-
-      const placeInfo = await this.getPlaceName(node.lat, node.lng);
-      placeInfos.push(placeInfo);
-
-      // 每个请求后延迟，避免限流
-      if (i < adcodes.length - 1) {
-        await this.delay(300); // 保持原有延迟
-      }
-    }
+    // 并发处理地名信息，提升速度
+    const placePromises = processedAdcodes.map(node => this.getPlaceName(node.lat, node.lng));
+    const placeInfos = await Promise.all(placePromises);
 
     // 并行进行风险预测
     const riskPromises = processedAdcodes.map(async (node, index) => {
