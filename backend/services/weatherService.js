@@ -67,6 +67,12 @@ class WeatherService {
       '149100eee3c46d9bc8f62d284c08dfa0',
       '50807820ae2b70795bd19430473023fd',
       'a8975e427b71212d897f13e02aded9b8',
+
+      '83803d5058c218eb99f8e3722804fec5',
+      '257698e63c1c4a499122fe9536a75dce',
+      'eb77df64ad363d3d6f6ba6000d14f827',
+      '2b8117325c4bd16f22cd1b766303414e',
+      '',
     ];
 
     // 初始化API密钥池
@@ -321,8 +327,8 @@ class WeatherService {
   }
 
   /**
- * 获取地点名称（通过逆地理编码API，优先返回最粗颗粒度地名）
- */
+  * 获取完整地名（通过逆地理编码API，拼接省市区/县/乡镇/街道）
+  */
   async getPlaceName(lat, lng) {
     let retries = 0;
     while (retries < this.maxRetries) {
@@ -344,10 +350,16 @@ class WeatherService {
           response.data.regeocode.addressComponent
         ) {
           const ac = response.data.regeocode.addressComponent;
-          // 优先级：省 > 市 > 区县 > 乡镇
-          const placeName = ac.province || ac.city || ac.district || ac.township || '未知';
+          // 拼接完整地名
+          const placeName = [
+            ac.province,
+            ac.city && ac.city !== ac.province ? ac.city : '',
+            ac.district,
+            ac.township,
+            ac.streetNumber && ac.streetNumber.street ? ac.streetNumber.street : ''
+          ].filter(Boolean).join('');
           return {
-            name: placeName,
+            name: placeName || '未知',
             placeError: null
           };
         } else {
@@ -831,6 +843,22 @@ class WeatherService {
 
     // 等待所有风险预测完成
     const results = await Promise.all(riskPromises);
+
+    // 补全无法预测风险的节点
+    let riskSum = 0;
+    let riskCount = 0;
+    results.forEach(node => {
+      if (typeof node.risk === 'number' && !isNaN(node.risk)) {
+        riskSum += node.risk;
+        riskCount++;
+      }
+    });
+    const avgRisk = riskCount > 0 ? riskSum / riskCount : 0;
+    results.forEach(node => {
+      if (!(typeof node.risk === 'number' && !isNaN(node.risk))) {
+        node.risk = avgRisk;
+      }
+    });
 
     // 按原始顺序整理结果
     results.forEach((result, index) => {
