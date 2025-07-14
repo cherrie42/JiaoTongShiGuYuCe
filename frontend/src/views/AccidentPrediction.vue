@@ -1,5 +1,25 @@
 <template>
   <div class="accident-prediction">
+    <!-- 添加路线选择器 -->
+    <el-card style="margin-bottom: 20px">
+      <template #header>
+        <span>路线选择</span>
+      </template>
+      <el-select 
+        v-model="selectedRouteIndex" 
+        placeholder="请选择路线" 
+        @change="handleRouteChange"
+        style="width: 300px"
+      >
+        <el-option
+          v-for="(route, index) in routeOptions"
+          :key="index"
+          :label="`路线 ${index + 1} (${route.riskLevel})`"
+          :value="index"
+        />
+      </el-select>
+    </el-card>
+
     <el-row :gutter="20">
       <!-- 左侧：路径和城市信息 -->
       <el-col :span="12">
@@ -61,6 +81,9 @@ import { getRouteDataFromStorage } from '@/api/route'
 
 const route = useRoute()
 const routeResults = ref([])
+const selectedRouteIndex = ref(0) // 当前选中的路线索引
+const routeOptions = ref([]) // 路线选项
+const routeData = ref(null) // 存储完整的路线数据
 let map = null
 let polyline = null
 
@@ -73,81 +96,100 @@ const getRiskLevelType = (level) => {
   return types[level] || 'info'
 }
 
-// 根据城市名获取经纬度
-function getCityLngLat(cityName) {
-  return new Promise((resolve, reject) => {
-    const geocoder = new window.AMap.Geocoder()
-    geocoder.getLocation(cityName, (status, result) => {
-      if (status === 'complete' && result.geocodes.length) {
-        resolve([result.geocodes[0].location.lng, result.geocodes[0].location.lat])
-      } else {
-        reject('无法获取城市坐标: ' + cityName)
-      }
-    })
-  })
+// 路线切换处理函数
+const handleRouteChange = (index) => {
+  if (!routeData.value || !routeData.value.routeRisks || !routeData.value.routeRisks[index]) {
+    ElMessage.error('路线数据不存在')
+    return
+  }
+
+  const routeRisk = routeData.value.routeRisks[index]
+  
+  // 重新绘制地图
+  drawRouteOnMap(routeRisk.route)
 }
 
-// 在地图上画出路线
-async function drawRouteOnMap(cities) {
+// 在地图上画出路线 - 使用与路线规划相同的方式
+function drawRouteOnMap(routePoints) {
   if (!map) return
+  
+  // 清除之前的路线
   if (polyline) {
     polyline.setMap(null)
     polyline = null
   }
+
   try {
-    const lnglats = []
-    for (const city of cities) {
-      const lnglat = await getCityLngLat(city.name)
-      lnglats.push(lnglat)
-    }
+    // 使用路径点数组直接绘制，与路线规划保持一致
+    const path = routePoints.map(p => [p.lng, p.lat])
+    
     polyline = new window.AMap.Polyline({
-      path: lnglats,
+      path,
       strokeColor: '#FF0000',
-      strokeWeight: 6
+      strokeWeight: 6,
+      isOutline: true,
+      outlineColor: '#ffeeff',
+      borderWeight: 2,
+      lineJoin: 'round'
     })
+    
     polyline.setMap(map)
     map.setFitView([polyline])
   } catch (e) {
-    ElMessage.error('部分城市坐标获取失败，无法绘制完整路线')
+    console.error('绘制路线失败:', e)
+    ElMessage.error('绘制路线失败')
   }
 }
 
 onMounted(() => {
   // 从 localStorage 获取数据
-  const routeData = getRouteDataFromStorage()
+  const data = getRouteDataFromStorage()
   
-  if (!routeData || !routeData.routes) {
+  if (!data || !data.routes) {
     ElMessage.error('未找到路线数据，请先进行路线规划')
     return
   }
 
-  routeResults.value = routeData.routes
-  // 默认画第一条路线
-  if (routeData.routes.length > 0) {
-    drawRouteOnMap(routeData.routes[0].cities)
-  }
+  // 存储完整数据
+  routeData.value = data
+  routeResults.value = data.routes
+
+  // 生成路线选项
+  routeOptions.value = data.routes.map((route, index) => ({
+    index,
+    riskLevel: route.riskLevel || '未知风险'
+  }))
 
   if (!window.AMap) {
     ElMessage.error('高德地图SDK未加载')
     return
   }
 
+  // 初始化地图
   map = new window.AMap.Map('map', {
     zoom: 7,
     center: [116.397428, 39.90923]
   })
+
+  // 默认绘制第一条路线
+  if (data.routeRisks && data.routeRisks.length > 0) {
+    selectedRouteIndex.value = 0
+    drawRouteOnMap(data.routeRisks[0].route)
+  }
 })
 
-// 如果后续想支持切换路线高亮，可以加watch
+// 监听路线数据变化
 watch(routeResults, (newVal) => {
-  if (newVal.length > 0) {
-    drawRouteOnMap(newVal[0].cities)
+  if (newVal.length > 0 && routeData.value && routeData.value.routeRisks && routeData.value.routeRisks.length > 0) {
+    drawRouteOnMap(routeData.value.routeRisks[0].route)
   }
 })
 </script>
 
 <style scoped lang="scss">
 .accident-prediction {
+  padding: 20px;
+
   .route-info-card {
     .route-item {
       margin-bottom: 30px;

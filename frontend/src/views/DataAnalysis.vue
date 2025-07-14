@@ -1,5 +1,24 @@
 <template>
   <div class="route-risk-analysis">
+    <!-- 添加路线选择器 -->
+    <el-card class="route-selector">
+      <template #header>
+        <span>路线选择</span>
+      </template>
+      <el-select 
+        v-model="selectedRouteIndex" 
+        placeholder="请选择路线" 
+        @change="handleRouteChange"
+      >
+        <el-option
+          v-for="(route, index) in routeOptions"
+          :key="index"
+          :label="`路线 ${index + 1} (${route.riskLevel})`"
+          :value="index"
+        />
+      </el-select>
+    </el-card>
+
     <el-row :gutter="20">
       <!-- 左侧地图 + 折线图 -->
       <el-col :span="16">
@@ -58,6 +77,30 @@ let map = null
 
 const highRiskPoints = ref([])
 const summary = ref({})
+const selectedRouteIndex = ref(0) // 当前选中的路线索引
+const routeOptions = ref([]) // 路线选项
+const routeData = ref(null) // 存储完整的路线数据
+
+// 路线切换处理函数
+const handleRouteChange = (index) => {
+  if (!routeData.value || !routeData.value.routeRisks || !routeData.value.routeRisks[index]) {
+    ElMessage.error('路线数据不存在')
+    return
+  }
+
+  const routeRisk = routeData.value.routeRisks[index]
+  
+  // 更新数据
+  highRiskPoints.value = routeRisk.highRiskPoints || []
+  summary.value = routeRisk.summary || {}
+
+  // 重新初始化地图和图表
+  if (map) {
+    map.destroy()
+  }
+  initMap(routeRisk.route)
+  initChart(routeRisk.route)
+}
 
 // 初始化路线风险热力图
 const initMap = (routePoints) => {
@@ -131,21 +174,25 @@ const initChart = (routePoints) => {
 
 // 从 localStorage 获取数据
 const loadRouteRiskData = () => {
-  const routeData = getRouteDataFromStorage()
+  const data = getRouteDataFromStorage()
   
-  if (!routeData || !routeData.routeRisks || routeData.routeRisks.length === 0) {
+  if (!data || !data.routeRisks || data.routeRisks.length === 0) {
     ElMessage.error('未找到路线风险数据，请先进行路线规划')
     return
   }
 
-  // 使用第一条路线的风险数据
-  const routeRisk = routeData.routeRisks[0]
+  // 存储完整数据
+  routeData.value = data
   
-  highRiskPoints.value = routeRisk.highRiskPoints || []
-  summary.value = routeRisk.summary || {}
+  // 生成路线选项
+  routeOptions.value = data.routeRisks.map((route, index) => ({
+    index,
+    riskLevel: data.routes[index]?.riskLevel || '未知风险'
+  }))
 
-  initMap(routeRisk.route)
-  initChart(routeRisk.route)
+  // 默认选择第一条路线
+  selectedRouteIndex.value = 0
+  handleRouteChange(0)
 }
 
 onMounted(() => {
@@ -178,5 +225,14 @@ onMounted(() => {
 .map-card,
 .chart-card {
   margin-bottom: 20px;
+}
+
+/* 路线选择器样式 */
+.route-selector {
+  margin-bottom: 20px;
+}
+
+.route-selector .el-select {
+  width: 300px;
 }
 </style>
