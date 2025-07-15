@@ -158,127 +158,153 @@ watch(messages, () => {
 }, { deep: true });
 </script>
 
-<style>
-/* 全局样式：确保html和body占据整个视口高度，并隐藏可能出现的全局滚动条 */
-html, body, #app { /* 如果您的Vue应用挂载在id为app的div上，也需要设置它 */
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden; /* 隐藏浏览器默认的滚动条，只允许内部元素滚动 */
-}
-</style>
-
 <style scoped>
 .ai-chat-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh; /* 容器占满视口高度 */
-  background: linear-gradient(to right, #f8f0ff, #f0e6ff); /* 更浅的淡紫色渐变背景 */
+  height: 90vh; /* 容器占满视口高度 */
+  background: linear-gradient(120deg, #c8dafd 0%, #d8e3ff 60%, #eaf0ff 100%); /* 更柔和的蓝紫渐变背景 */
   padding: 20px;
   box-sizing: border-box;
 }
 
 .chat-card {
   width: 100%;
-  max-width: 1200px; /* 增加最大宽度 */
-  height: 90vh; /* 增加高度 */
+  max-width: 1200px; /* 最大宽度 */
+  height: 85vh;
   display: flex;
-  flex-direction: column; /* 垂直布局 */
-  border-radius: 16px; /* 增加圆角 */
-  overflow: hidden; /* 防止内容溢出卡片 */
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15); /* 增强阴影效果 */
-  background-color: rgba(255, 255, 255, 0.6); /* 半透明白色背景 */
-  backdrop-filter: blur(20px); /* 毛玻璃效果 */
-  -webkit-backdrop-filter: blur(20px); /* Safari兼容性 */
+  flex-direction: column;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 15px 35px rgba(50, 90, 230, 0.15); /* 蓝紫色柔和阴影 */
+  background-color: rgba(245, 250, 255, 0.75); /* 半透明白蓝色 */
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(140, 170, 255, 0.4);
 }
 
 .card-header {
-  flex-shrink: 0; /* 不会收缩，保持固定高度 */
+  flex-shrink: 0;
   height: 64px;
   display: flex;
   align-items: center;
-  padding: 0 20px; /* 调整内边距 */
-  background-color: rgba(190, 160, 250, 0.8); /* 更改为更浅的半透明淡紫色 */
-  color: #fff;
-  font-size: 24px; /* 稍微增大字体 */
-  font-weight: bold;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* 头部底部阴影 */
-  z-index: 1; /* 确保阴影在消息上方 */
-  backdrop-filter: blur(10px); /* 毛玻璃效果 */
-  -webkit-backdrop-filter: blur(10px); /* Safari兼容性 */
+  padding: 0 24px;
+  background: linear-gradient(90deg, #8eaaff, #7a92f7);
+  color: #ffffff;
+  font-size: 26px;
+  font-weight: 700;
+  box-shadow: 0 3px 10px rgba(86, 116, 255, 0.3);
+  z-index: 1;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  letter-spacing: 0.05em;
 }
 
 .chat-messages {
-  flex-grow: 1; /* 占据所有可用空间 */
-  min-height: 0; /* 允许在flex容器中正确收缩，使overflow-y: auto生效 */
-  overflow-y: auto; /* 消息区域内部滚动 */
-  padding: 20px;
-  background-color: rgba(255, 255, 255, 0.8); /* 半透明白色背景，保持可读性 */
+  flex-grow: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px;
+  background-color: rgba(255, 255, 255, 0.85);
+  border-radius: 0 0 20px 20px;
   scrollbar-width: thin;
-  scrollbar-color: #d8bfff transparent; /* 调整滚动条颜色为更浅的淡紫色 */
+  scrollbar-color: #a0b8ff transparent;
 }
 
 .chat-messages::-webkit-scrollbar {
-  width: 8px; /* 稍微增大滚动条宽度 */
+  width: 9px;
 }
 
 .chat-messages::-webkit-scrollbar-thumb {
-  background: #d8bfff; /* 调整滚动条颜色为更浅的淡紫色 */
-  border-radius: 4px; /* 调整滚动条圆角 */
+  background: linear-gradient(180deg, #7a92f7, #4e67db);
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
 }
 
 .quick-questions {
-  flex-shrink: 0; /* 不会收缩，保持固定高度 */
-  max-height: 90px; /* 稍微增加高度 */
-  overflow-y: auto; /* 常见问题区域内部滚动 */
-  background-color: rgba(250, 245, 255, 0.8); /* 更改为更浅的半透明淡紫色背景 */
-  border-top: 1px solid rgba(224, 224, 224, 0.5); /* 调整边框颜色为半透明 */
-  border-bottom: 1px solid rgba(224, 224, 224, 0.5);
-  padding: 12px 20px; /* 调整内边距 */
+  flex-shrink: 0;
+  max-height: 90px;
+  overflow-y: auto;
+  background-color: rgba(160, 190, 255, 0.15);
+  border-top: 1px solid rgba(140, 170, 255, 0.3);
+  border-bottom: 1px solid rgba(140, 170, 255, 0.3);
+  padding: 14px 24px;
   display: flex;
-  flex-wrap: wrap; /* 允许标签换行 */
-  gap: 12px; /* 增加标签间距 */
-  backdrop-filter: blur(8px); /* 毛玻璃效果 */
-  -webkit-backdrop-filter: blur(8px); /* Safari兼容性 */
+  flex-wrap: wrap;
+  gap: 14px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 0 0 20px 20px;
 }
 
 .quick-tag {
   cursor: pointer;
-  white-space: nowrap; /* 防止标签文本换行 */
-  background-color: rgba(240, 230, 255, 0.9); /* 标签背景色为更浅的淡紫色，略微透明 */
-  color: #c0a0ff; /* 标签文字颜色为更浅的淡紫色 */
-  border: 1px solid rgba(210, 180, 255, 0.7); /* 标签边框为更浅的淡紫色，略微透明 */
-  border-radius: 20px; /* 更大的圆角 */
-  padding: 6px 14px; /* 调整内边距 */
-  transition: all 0.2s ease-in-out; /* 添加过渡效果 */
+  white-space: nowrap;
+  background: linear-gradient(135deg, #9caeff, #6682ff);
+  color: #e6ebff;
+  border: none;
+  border-radius: 24px;
+  padding: 8px 18px;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 3px 8px rgba(85, 110, 230, 0.4);
+  transition: all 0.25s ease-in-out;
 }
 
 .quick-tag:hover {
-  background-color: #c0a0ff; /* 悬停背景色为更浅的淡紫色 */
-  color: #fff; /* 悬停文字颜色 */
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); /* 悬停阴影 */
-  transform: translateY(-2px); /* 悬停上浮效果 */
+  background: linear-gradient(135deg, #5c7aff, #3b54e3);
+  color: #fff;
+  box-shadow: 0 6px 15px rgba(60, 80, 220, 0.7);
+  transform: translateY(-3px);
 }
 
 .chat-input {
-  flex-shrink: 0; /* 不会收缩，保持固定高度 */
-  height: 70px; /* 稍微增加高度 */
-  padding: 12px 20px; /* 调整内边距 */
-  background-color: rgba(255, 255, 255, 0.8); /* 半透明白色背景 */
-  border-top: 1px solid rgba(224, 224, 224, 0.5); /* 调整边框颜色为半透明 */
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05); /* 顶部阴影 */
-  display: flex; /* 使输入框和按钮对齐 */
+  flex-shrink: 0;
+  height: 72px;
+  padding: 16px 24px;
+  background-color: rgba(230, 240, 255, 0.9);
+  border-top: 1px solid rgba(140, 170, 255, 0.4);
+  box-shadow: 0 -3px 12px rgba(80, 100, 255, 0.15);
+  display: flex;
   align-items: center;
-  backdrop-filter: blur(8px); /* 毛玻璃效果 */
-  -webkit-backdrop-filter: blur(8px); /* Safari兼容性 */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  .el-input {
+    flex-grow: 1;
+    border-radius: 36px;
+    background: white;
+  }
+
+  .el-input__inner {
+    border-radius: 36px !important;
+    padding-left: 20px !important;
+    font-size: 16px;
+    color: #2d3e8c;
+  }
+
+  .el-button {
+    margin-left: 14px;
+    background: linear-gradient(135deg, #5b7aff, #2e48dd);
+    color: white;
+    font-weight: 600;
+    border-radius: 36px;
+    padding: 10px 24px;
+    transition: background 0.3s ease;
+
+    &:hover {
+      background: linear-gradient(135deg, #4666e6, #1e32b8);
+      box-shadow: 0 5px 18px rgba(40, 60, 200, 0.8);
+    }
+  }
 }
 
 /* 消息样式 */
 .message-item {
   display: flex;
-  margin-bottom: 18px; /* 增加消息间距 */
-  animation: fadeInSlideUp 0.3s ease-out forwards; /* 淡入上滑动画 */
+  margin-bottom: 20px;
+  animation: fadeInSlideUp 0.35s ease forwards;
 }
 
 .message-item.user {
@@ -290,43 +316,53 @@ html, body, #app { /* 如果您的Vue应用挂载在id为app的div上，也需�
 }
 
 .avatar {
-  margin: 0 12px; /* 调整头像间距 */
+  margin: 0 14px;
+  .el-avatar {
+    background: linear-gradient(135deg, #4a69d7, #2d3e8c);
+    color: white;
+    box-shadow: 0 4px 12px rgba(60, 90, 200, 0.5);
+  }
 }
 
 .content {
-  max-width: 70%; /* 稍微缩小最大宽度 */
-  padding: 14px 18px; /* 调整内边距 */
-  border-radius: 18px; /* 增加圆角 */
+  max-width: 72%;
+  padding: 16px 20px;
+  border-radius: 20px;
   white-space: pre-wrap;
   word-break: break-word;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* 增强气泡阴影 */
+  box-shadow: 0 4px 14px rgba(40, 80, 230, 0.15);
+  font-size: 16px;
+  line-height: 1.5;
+  user-select: text;
 }
 
 .message-item.user .content {
-  background-color: rgba(190, 160, 250, 0.9); /* 用户气泡背景为更浅的淡紫色，略微透明 */
-  color: #fff;
-  border-bottom-right-radius: 6px; /* 调整气泡角 */
+  background: linear-gradient(135deg, #7a9aff, #3e65d9);
+  color: #f0f6ff;
+  border-bottom-right-radius: 8px;
+  box-shadow: 0 6px 20px rgba(50, 80, 230, 0.45);
 }
 
 .message-item.ai .content {
-  background-color: rgba(250, 245, 255, 0.9); /* AI气泡背景为更浅的淡紫色，略微透明 */
-  color: #333;
-  border-bottom-left-radius: 6px; /* 调整气泡角 */
+  background: linear-gradient(135deg, #dae3ff, #b5c5ff);
+  color: #24305e;
+  border-bottom-left-radius: 8px;
+  box-shadow: 0 6px 18px rgba(100, 120, 230, 0.25);
 }
 
-/* AI 思考中的加载指示器样式 */
+/* AI 加载动画 */
 .loading-indicator {
   display: flex;
   align-items: center;
-  height: 20px; /* 确保有足够空间显示点 */
+  height: 22px;
 }
 
 .loading-indicator span {
-  width: 8px;
-  height: 8px;
-  background-color: #c0a0ff; /* 与淡紫色主题保持一致 */
+  width: 9px;
+  height: 9px;
+  background: linear-gradient(135deg, #7a92f7, #4e67db);
   border-radius: 50%;
-  margin: 0 3px;
+  margin: 0 4px;
   animation: bounce 1.4s infinite ease-in-out both;
 }
 
@@ -338,11 +374,11 @@ html, body, #app { /* 如果您的Vue应用挂载在id为app的div上，也需�
   animation-delay: -0.16s;
 }
 
-/* 动画定义 */
+/* 动画 */
 @keyframes fadeInSlideUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(24px);
   }
   to {
     opacity: 1;
