@@ -11,7 +11,7 @@ app.use(express.json());
 
 // ✅ 注册 /user 路由模块
 const userRouter = require('./routes/user')
-app.use('/user', userRouter)
+app.use('/api/user', userRouter)
 
 
 // 配置 MySQL 连接

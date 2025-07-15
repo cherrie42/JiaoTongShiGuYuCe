@@ -11,12 +11,11 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 3000,
+    port: 3005,       // 前端开发服务器端口
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3001',  // 代理到后端端口
         changeOrigin: true,
-        // rewrite: path => path.replace(/^\/api/, '')
       }
     }
   }
