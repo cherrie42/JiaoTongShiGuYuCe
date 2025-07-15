@@ -230,8 +230,8 @@ const sendRouteDataToBackend = async (origin, destination, departTime, vehicleTy
         waypoints: waypoints
       })
     }
+    console.log('发送路线数据:', paths);
     const response = await sendRouteData({ paths })
-    console.log('后端返回:', response.data)
     ElMessage.success('路线数据已发送到后端')
   } catch (error) {
     console.error('请求失败:', error)
