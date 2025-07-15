@@ -125,7 +125,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import axios from 'axios'
+import { getAccidents, createAccident, updateAccident, deleteAccident } from '@/api/data'
+
 
 const tableData = ref([])
 const loading = ref(false)
@@ -139,14 +140,13 @@ const editForm = ref({})
 const fetchData = async () => {
   loading.value = true
   try {
-    const res = await axios.get('http://localhost:4000/api/accidents', {
-      params: {
-        page: currentPage.value - 1,
-        size: pageSize.value
-      }
+    const res = await getAccidents({
+      page: currentPage.value - 1,
+      size: pageSize.value
     })
-    tableData.value = res.data.content
-    total.value = res.data.totalElements
+    console.log('接口返回数据:', res)  // 调试输出，确认结构
+    tableData.value = res.content
+    total.value = res.totalElements
   } catch (error) {
     console.error('请求失败:', error)
     ElMessage.error('获取数据失败')
@@ -154,6 +154,8 @@ const fetchData = async () => {
     loading.value = false
   }
 }
+
+
 
 const handleSizeChange = (val) => {
   pageSize.value = val
@@ -173,9 +175,9 @@ const handleEdit = (row) => {
 const handleSave = async () => {
   try {
     if (editForm.value.id) {
-      await axios.put(`/api/accidents/${editForm.value.id}`, editForm.value)
+      await updateAccident(editForm.value.id, editForm.value)
     } else {
-      await axios.post('/api/accidents', editForm.value)
+      await createAccident(editForm.value)
     }
     ElMessage.success('保存成功')
     dialogVisible.value = false
@@ -185,12 +187,13 @@ const handleSave = async () => {
   }
 }
 
+
 const handleDelete = async (row) => {
   try {
     await ElMessageBox.confirm('确定要删除这条记录吗？', '提示', {
       type: 'warning'
     })
-    await axios.delete(`/api/accidents/${row.id}`)
+    await deleteAccident(row.id)
     ElMessage.success('删除成功')
     fetchData()
   } catch (error) {
@@ -199,6 +202,7 @@ const handleDelete = async (row) => {
     }
   }
 }
+
 
 onMounted(() => {
   fetchData()

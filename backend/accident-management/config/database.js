@@ -1,7 +1,7 @@
 const { Sequelize } = require('sequelize');
 
-const sequelize = new Sequelize('traffic_prediction', 'root', '258488qw', {
-  host: 'localhost',
+const sequelize = new Sequelize('traffic', 'root', 'Fyt@3855', {
+  host: '127.0.0.1',
   dialect: 'mysql',
   logging: false,  // 关闭SQL日志，方便调试时改为true
   define: {

@@ -2,7 +2,7 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
-const Accident = sequelize.define('traffic_accidents', {
+const Accident = sequelize.define('accidents', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,

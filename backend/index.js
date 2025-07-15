@@ -13,6 +13,10 @@ app.use(express.json());
 const userRouter = require('./routes/user')
 app.use('/api/user', userRouter)
 
+const accidentRoutes = require('./accident-management/routes/accidentRoutes.js') // 路径根据你目录结构调整
+// ✅ 挂载 API 路由，加上 /api/accidents
+app.use('/api/accidents', accidentRoutes)
+
 
 // 配置 MySQL 连接
 const db = mysql.createConnection({
