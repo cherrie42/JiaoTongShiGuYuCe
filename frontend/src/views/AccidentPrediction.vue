@@ -41,7 +41,10 @@
                 风险等级：{{ route.riskLevel }}
               </el-tag>
             </div>
-
+            <!-- 新增：平均风险值展示 -->
+            <div style="margin-bottom: 8px; color: #666;">
+              平均风险值：{{ getAvgRisk(index) }}
+            </div>
             <el-carousel height="120px" indicator-position="outside">
               <el-carousel-item
                 v-for="(city, i) in route.cities"
@@ -53,6 +56,10 @@
                     温度：{{ city.temperature }}℃ 湿度：{{ city.humidity }}%
                   </div>
                   <div>风速：{{ city.windSpeed }}级</div>
+                  <!-- 新增：节点风险值展示 -->
+                  <div style="margin-top: 4px; color: #c96;">
+                    风险值：{{ getNodeRisk(index, i) }}
+                  </div>
                 </div>
               </el-carousel-item>
             </el-carousel>
@@ -277,6 +284,21 @@ const handleRouteChange = (index) => {
   }
   // 重新绘制地图（用plannedRoutes）
   drawAllRoutesOnMap(index)
+}
+
+// 获取平均风险值
+function getAvgRisk(routeIdx) {
+  if (!routeData.value || !routeData.value.routeRisks || !routeData.value.routeRisks[routeIdx]) return '-';
+  const avg = routeData.value.routeRisks[routeIdx].summary?.avgRisk;
+  return typeof avg === 'number' ? avg.toFixed(3) : '-';
+}
+// 获取节点风险值
+function getNodeRisk(routeIdx, nodeIdx) {
+  if (!routeData.value || !routeData.value.routeRisks || !routeData.value.routeRisks[routeIdx]) return '-';
+  const arr = routeData.value.routeRisks[routeIdx].route;
+  if (!arr || !arr[nodeIdx]) return '-';
+  const risk = arr[nodeIdx].risk;
+  return typeof risk === 'number' ? risk.toFixed(3) : '-';
 }
 
 onMounted(() => {
