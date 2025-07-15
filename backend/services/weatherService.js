@@ -1,4 +1,5 @@
 const axios = require('axios');
+const fetch = require('node-fetch');
 
 /**
  * API密钥池管理类
@@ -20,6 +21,7 @@ class KeyPool {
         const keyInfo = this.keys[i];
         if (now - keyInfo.lastCall >= this.minInterval) {
           keyInfo.lastCall = now;
+          console.log(`[KeyPool] 分配key: ${keyInfo.key}`);
           return keyInfo.key;
         }
       }
@@ -38,6 +40,129 @@ class KeyPool {
       console.log(`密钥被限流，禁用5秒: ${key.substring(0, 8)}...`);
     }
   }
+}
+
+// OSM道路类型与模型字段映射
+const OSM_HIGHWAY_TO_MODEL = {
+  motorway: 'Expressway',
+  trunk: 'Expressway',
+  primary: 'Main Road',
+  secondary: 'Main Road',
+  tertiary: 'Main Road',
+  residential: 'Local Road',
+  service: 'Service Road',
+  unclassified: 'Local Road',
+  living_street: 'Local Road',
+  // 其他类型可补充
+};
+
+// 高德道路等级到模型字段映射
+const AMAP_ROADLEVEL_TO_MODEL = {
+  '快速路': 'Expressway',
+  '主干路': 'Main Road',
+  '次干路': 'Main Road',
+  '支路': 'Local Road',
+  '高速路': 'Expressway',
+  '城市高速路': 'Expressway',
+  '国道': 'Expressway',
+  '省道': 'Main Road',
+  '县道': 'Local Road',
+  '乡村道路': 'Local Road',
+  '其他道路': 'Service Road',
+};
+
+/**
+ * 高德逆地理编码获取道路类型和信号灯（3秒超时）
+ */
+async function getRoadInfoFromAmap(lat, lng, amapKey, weatherServiceInstance) {
+  const start = Date.now();
+  const timeoutMs = 3000;
+  console.log(`[高德道路] 使用key: ${amapKey} 查询 lat:${lat}, lng:${lng}`);
+  function timeoutPromise() {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const duration = Date.now() - start;
+        console.warn(`【高德道路超时保护】lat:${lat}, lng:${lng}, duration:${duration}ms`);
+        resolve({ roadType: null, hasSignal: false });
+      }, timeoutMs);
+    });
+  }
+  const result = await Promise.race([
+    (async () => {
+      try {
+        // 复用WeatherService实例的regeoCache
+        const data = await weatherServiceInstance.getRegeo(lat, lng, 'all');
+        let roadType = null;
+        let hasSignal = false;
+        if (data.status === '1' && data.regeocode) {
+          // 取最近道路等级
+          const roads = data.regeocode.roads;
+          if (roads && roads.length > 0) {
+            const level = roads[0].level || roads[0].name || '';
+            roadType = AMAP_ROADLEVEL_TO_MODEL[level] || null;
+          }
+          // 信号灯判断：取最近路口的has_traffic_light字段
+          const roadinters = data.regeocode.roadinters;
+          if (roadinters && roadinters.length > 0) {
+            hasSignal = roadinters[0].has_traffic_light === true || roadinters[0].has_traffic_light === 'true';
+          }
+        }
+        const duration = Date.now() - start;
+        console.log(`【高德道路查询用时】lat:${lat}, lng:${lng}, roadType:${roadType}, hasSignal:${hasSignal}, duration:${duration}ms`);
+        return { roadType, hasSignal };
+      } catch (e) {
+        return { roadType: null, hasSignal: false };
+      }
+    })(),
+    timeoutPromise()
+  ]);
+  return result;
+}
+
+// 获取道路类型和信号灯信息（带用时日志）
+async function getRoadInfoFromOSM(lat, lng) {
+  const start = Date.now();
+  let roadType = null;
+  let hasSignal = false;
+  // 超时保护：3秒
+  const timeoutMs = 3000;
+  function timeoutPromise() {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const duration = Date.now() - start;
+        console.warn(`【OSM超时保护】lat:${lat}, lng:${lng}, duration:${duration}ms`);
+        resolve({ roadType: null, hasSignal: false });
+      }, timeoutMs);
+    });
+  }
+  // 并行执行查询和超时
+  const result = await Promise.race([
+    (async () => {
+      try {
+        const url = `https://overpass-api.de/api/interpreter?data=[out:json];way(around:20,${lat},${lng})[highway];out;`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.elements && data.elements.length > 0) {
+          roadType = data.elements[0].tags.highway;
+        }
+      } catch (e) { /* 网络异常忽略 */ }
+      try {
+        const url = `https://overpass-api.de/api/interpreter?data=[out:json];node(around:20,${lat},${lng})[highway=traffic_signals];out;`;
+        const res = await fetch(url);
+        const data = await res.json();
+        hasSignal = data.elements && data.elements.length > 0;
+      } catch (e) { /* 网络异常忽略 */ }
+      const duration = Date.now() - start;
+      console.log(`【OSM查询用时】lat:${lat}, lng:${lng}, roadType:${roadType}, hasSignal:${hasSignal}, duration:${duration}ms`);
+      return { roadType, hasSignal };
+    })(),
+    timeoutPromise()
+  ]);
+  return result;
+}
+
+function roundCoord(val) {
+  return Math.round(val * 1000) / 1000;
 }
 
 class WeatherService {
@@ -87,6 +212,8 @@ class WeatherService {
     this.errorCounts = new Map();
     this.maxRetries = 20;
     this.nodeRiskCache = new Map(); // 节点风险记忆化缓存
+    this.roadInfoCache = new Map(); // 全局道路信息缓存
+    this.regeoCache = new Map(); // 全局高德逆地理编码Promise级缓存
   }
 
   /**
@@ -178,40 +305,28 @@ class WeatherService {
   }
 
   /**
-   * 省级或市级adcode降级为区县级
+   * 全局高德逆地理编码Promise级缓存，extensions可选
    */
-  async downgradeAdcode(lat, lng) {
-    try {
-      await this.throttleApiCall();
-
+  async getRegeo(lat, lng, extensions = 'all') {
+    const key = `${roundCoord(lat)},${roundCoord(lng)}_${extensions}`;
+    if (this.regeoCache.has(key)) {
+      return await this.regeoCache.get(key);
+    }
+    const promise = (async () => {
       const apiKey = await this.getAvailableApiKey();
       const response = await axios.get(`${this.baseUrl}/geocode/regeo`, {
         params: {
           key: apiKey,
           location: `${lng},${lat}`,
           output: 'json',
-          extensions: 'base'
+          extensions
         },
-        timeout: 10000 // 10秒超时
+        timeout: 10000
       });
-
-      if (response.data.status === '1' &&
-        response.data.regeocode &&
-        response.data.regeocode.addressComponent) {
-
-        const addressComponent = response.data.regeocode.addressComponent;
-        // 优先使用区县adcode，如果没有则使用市级
-        const newAdcode = addressComponent.adcode || addressComponent.citycode;
-
-        if (newAdcode) {
-          console.log(`adcode降级成功: ${lat},${lng} -> ${newAdcode}`);
-          return newAdcode;
-        }
-      }
-    } catch (error) {
-      console.warn(`adcode降级失败: ${lat},${lng}`, error.message);
-    }
-    return null;
+      return response.data;
+    })();
+    this.regeoCache.set(key, promise);
+    return await promise;
   }
 
   /**
@@ -320,39 +435,36 @@ class WeatherService {
     let retries = 0;
     while (retries < this.maxRetries) {
       try {
-        const apiKey = await this.getAvailableApiKey();
-        const response = await axios.get(`${this.baseUrl}/geocode/regeo`, {
-          params: {
-            key: apiKey,
-            location: `${lng},${lat}`,
-            output: 'json',
-            extensions: 'base'
-          },
-          timeout: 10000
-        });
-
+        const data = await this.getRegeo(lat, lng, 'base');
         if (
-          response.data.status === '1' &&
-          response.data.regeocode &&
-          response.data.regeocode.addressComponent
+          data.status === '1' &&
+          data.regeocode &&
+          data.regeocode.addressComponent
         ) {
-          const ac = response.data.regeocode.addressComponent;
-          // 拼接完整地名
-          const placeName = [
-            ac.province,
-            ac.city && ac.city !== ac.province ? ac.city : '',
-            ac.district,
-            ac.township,
-            ac.streetNumber && ac.streetNumber.street ? ac.streetNumber.street : ''
-          ].filter(Boolean).join('');
+          const ac = data.regeocode.addressComponent;
+          console.log('[地名addressComponent]', ac);
+          // 智能降级拼接
+          let placeName = '';
+          const street = (ac.streetNumber && ac.streetNumber.street) || '';
+          if (street) {
+            placeName = [ac.province, ac.city, ac.district, ac.township, street].filter(Boolean).join('');
+          } else if (ac.township) {
+            placeName = [ac.province, ac.city, ac.district, ac.township].filter(Boolean).join('');
+          } else if (ac.district) {
+            placeName = [ac.province, ac.city, ac.district].filter(Boolean).join('');
+          } else if (ac.city) {
+            placeName = [ac.province, ac.city].filter(Boolean).join('');
+          } else {
+            placeName = ac.province || '未知';
+          }
           return {
-            name: placeName || '未知',
+            name: placeName,
             placeError: null
           };
         } else {
-          const error = `逆地理编码API返回异常 - 状态: ${response.data.status}, 信息: ${response.data.info}, 数据: ${JSON.stringify(response.data)}`;
-          if (this.isRateLimited(response)) {
-            await this.handleRateLimit(apiKey);
+          const error = `逆地理编码API返回异常 - 状态: ${data.status}, 信息: ${data.info}, 数据: ${JSON.stringify(data)}`;
+          if (this.isRateLimited(data)) {
+            await this.handleRateLimit();
             retries++;
             continue;
           }
@@ -607,7 +719,7 @@ class WeatherService {
    * @param {object} [weatherInfo] 可选，已查到的天气信息
    * @returns {Promise<Object>} { success, adcode, probability, features }
    */
-  async predictAccidentRiskByAdcode(adcode, time, weatherInfo) {
+  async predictAccidentRiskByAdcode(adcode, time, weatherInfo, roadInfo = {}) {
     try {
       let weather = weatherInfo;
       if (!weather) {
@@ -633,12 +745,13 @@ class WeatherService {
       } else {
         dateObj = new Date();
       }
+      // 字段映射
       const featureData = {
         crash_date: dateObj.toISOString().slice(0, 10), // 日期 yyyy-mm-dd
-        traffic_control_device: 'Traffic Signal', // 默认值
+        traffic_control_device: roadInfo.traffic_control_device || 'Traffic Signal', // 默认值
         weather_condition: this.mapWeatherToCondition(weather.weather),
-        lighting_condition: this.mapLightingCondition(dateObj.getHours()),
-        trafficway_type: 'Two-Way, Not Divided', // 默认值
+        lighting_condition: this.mapLightingCondition(dateObj.getHours(), weather.weather),
+        trafficway_type: roadInfo.trafficway_type || 'Two-Way, Not Divided', // 默认值
         alignment: 'Straight', // 默认值
         roadway_surface_cond: this.mapRoadSurfaceCond(weather.weather),
         road_defect: 'None', // 默认值
@@ -684,12 +797,25 @@ class WeatherService {
   }
 
   /**
-   * 根据小时映射照明条件
+   * 根据小时和天气映射照明条件
    */
-  mapLightingCondition(hour) {
-    if (hour >= 6 && hour < 18) return 'Daylight';
-    if (hour >= 18 && hour < 20) return 'Dusk';
-    return 'Dark - Street Lights On';
+  mapLightingCondition(hour, weather) {
+    // 夜晚
+    if (hour < 6 || hour >= 20) return 'Dark - Street Lights On';
+    // 白天
+    if (hour >= 6 && hour < 18) {
+      if (weather && (weather.includes('晴') || weather.includes('多云'))) return 'Daylight';
+      if (weather && weather.includes('阴')) return 'Daylight - Cloudy';
+      if (weather && (weather.includes('雨') || weather.includes('雪'))) return 'Daylight - Rain/Snow';
+      return 'Daylight';
+    }
+    // 黄昏
+    if (hour >= 18 && hour < 20) {
+      if (weather && (weather.includes('晴') || weather.includes('多云'))) return 'Dusk';
+      if (weather && (weather.includes('阴') || weather.includes('雨') || weather.includes('雪'))) return 'Dusk - Cloudy/Rain/Snow';
+      return 'Dusk';
+    }
+    return 'Daylight';
   }
 
   /**
@@ -730,6 +856,30 @@ class WeatherService {
   }
 
   /**
+   * 省级或市级adcode降级为区县级
+   */
+  async downgradeAdcode(lat, lng) {
+    try {
+      await this.throttleApiCall();
+      const data = await this.getRegeo(lat, lng, 'base');
+      if (data.status === '1' &&
+        data.regeocode &&
+        data.regeocode.addressComponent) {
+        const addressComponent = data.regeocode.addressComponent;
+        // 优先使用区县adcode，如果没有则使用市级
+        const newAdcode = addressComponent.adcode || addressComponent.citycode;
+        if (newAdcode) {
+          console.log(`adcode降级成功: ${lat},${lng} -> ${newAdcode}`);
+          return newAdcode;
+        }
+      }
+    } catch (error) {
+      console.warn(`adcode降级失败: ${lat},${lng}`, error.message);
+    }
+    return null;
+  }
+
+  /**
    * 批量处理节点数据
    * @param {Array} nodes - 节点数组
    * @param {string} departTime - 出发时间
@@ -737,74 +887,96 @@ class WeatherService {
    */
   async processNodesBatch(nodes, departTime) {
     const processedNodes = [];
-
-    // 处理adcode降级
     const processedAdcodes = [];
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       let { adcode, lat, lng } = node;
-
-      console.log(`处理节点 ${i + 1}/${nodes.length}: ${adcode}, ${lat}, ${lng}`);
-
-      // 省级或市级adcode降级处理
       if (this.isProvinceAdcode(adcode) || this.isCityAdcode(adcode)) {
-        console.log(`发现省级或市级adcode: ${adcode}，进行降级...`);
         const newAdcode = await this.downgradeAdcode(lat, lng);
         if (newAdcode) {
           adcode = newAdcode;
-          console.log(`降级成功: ${adcode}`);
         }
       }
-
-      processedAdcodes.push({ ...node, adcode });
+      const key = `${roundCoord(lat)},${roundCoord(lng)}`;
+      // Promise级缓存，优先OSM，其次高德
+      if (!this.roadInfoCache.has(key)) {
+        const promise = (async () => {
+          // OSM和高德并行，谁快用谁
+          const amapKey = await this.getAvailableApiKey();
+          const weatherServiceInstance = this;
+          const result = await Promise.race([
+            getRoadInfoFromOSM(lat, lng),
+            getRoadInfoFromAmap(lat, lng, amapKey, weatherServiceInstance)
+          ]);
+          return result;
+        })().catch(() => ({ roadType: null, hasSignal: false }));
+        this.roadInfoCache.set(key, promise);
+      }
+      processedAdcodes.push({ ...node, adcode, _roadKey: key });
     }
-
+    for (let i = 0; i < processedAdcodes.length; i++) {
+      const node = processedAdcodes[i];
+      const { _roadKey } = node;
+      const { roadType, hasSignal } = await this.roadInfoCache.get(_roadKey);
+      processedAdcodes[i] = { ...node, roadType, hasSignal };
+    }
     // 批量获取天气和城市信息
     const adcodes = processedAdcodes.map(node => node.adcode);
-
-    // 并发处理天气信息，提升速度
     const weatherInfos = await this.getWeatherInfoBatch(adcodes);
-
-    // 并发处理地名信息，提升速度
     const placePromises = processedAdcodes.map(node => this.getPlaceName(node.lat, node.lng));
     const placeInfos = await Promise.all(placePromises);
-
     // 记忆化风险预测
     const riskPromises = processedAdcodes.map(async (node, index) => {
-      const { adcode } = node;
-      const weatherInfo = weatherInfos[index];
-      // 以adcode+departTime为key
+      const { adcode, roadType, hasSignal, lat, lng } = node;
       const cacheKey = `${adcode}_${departTime}`;
-      let risk;
+      let riskPromise;
+      let trafficway_type, traffic_control_device;
       if (this.nodeRiskCache.has(cacheKey)) {
-        risk = this.nodeRiskCache.get(cacheKey);
+        riskPromise = this.nodeRiskCache.get(cacheKey);
       } else {
-        const riskRes = await this.predictAccidentRiskByAdcode(adcode, departTime, weatherInfo);
-        risk = riskRes.success ? riskRes.probability : null;
-        risk = risk * (0.95 + Math.random() * 0.1);
-        // 天气详细数值调整risk
-        if (typeof risk === 'number' && weatherInfo) {
-          risk = this.adjustRiskByWeather(risk, weatherInfo);
-        }
-        this.nodeRiskCache.set(cacheKey, risk);
+        trafficway_type = OSM_HIGHWAY_TO_MODEL[roadType] || 'Two-Way, Not Divided';
+        traffic_control_device = hasSignal ? 'Traffic Signal' : 'None';
+        riskPromise = (async () => {
+          const riskRes = await this.predictAccidentRiskByAdcode(adcode, departTime, weatherInfos[index], { trafficway_type, traffic_control_device });
+          let risk = riskRes.success ? riskRes.probability : null;
+          risk=this.adjustRiskByWeather(risk, weatherInfos[index]);
+          risk=risk*(0.95+Math.random()*0.1);
+          const weatherInfo = weatherInfos[index];
+          console.log('【节点预测特征】', {
+            lat,
+            lng,
+            adcode,
+            roadType,
+            hasSignal,
+            trafficway_type,
+            traffic_control_device,
+            weather: weatherInfo?.weather,
+            temperature: weatherInfo?.temperature,
+            humidity: weatherInfo?.humidity,
+            windSpeed: weatherInfo?.windSpeed,
+            risk
+          });
+          return risk;
+        })();
+        this.nodeRiskCache.set(cacheKey, riskPromise);
       }
+      const risk = await riskPromise;
       return {
         adcode: node.adcode,
         lat: node.lat,
         lng: node.lng,
         weatherInfo: weatherInfos[index],
-        cityInfo: placeInfos[index], // 这里cityInfo其实是placeInfo，结构兼容
+        cityInfo: placeInfos[index],
         risk,
-        location: `${node.lng},${node.lat}`
+        location: `${node.lng},${node.lat}`,
+        roadType: node.roadType,
+        hasSignal: node.hasSignal
       };
     });
-
-    // 按原始顺序整理结果
     const results = await Promise.all(riskPromises);
     results.forEach((result, index) => {
       processedNodes[index] = result;
     });
-
     return processedNodes;
   }
 

@@ -5,18 +5,9 @@
       <template #header>
         <span>路线选择</span>
       </template>
-      <el-select 
-        v-model="selectedRouteIndex" 
-        placeholder="请选择路线" 
-        @change="handleRouteChange"
-        style="width: 300px"
-      >
-        <el-option
-          v-for="(route, index) in routeOptions"
-          :key="index"
-          :label="`路线 ${index + 1} (${route.riskLevel})`"
-          :value="index"
-        />
+      <el-select v-model="selectedRouteIndex" placeholder="请选择路线" @change="handleRouteChange" style="width: 300px">
+        <el-option v-for="(route, index) in routeOptions" :key="index" :label="`路线 ${index + 1} (${route.riskLevel})`"
+          :value="index" />
       </el-select>
     </el-card>
 
@@ -30,33 +21,26 @@
             </div>
           </template>
 
-          <div
-            v-for="(route, index) in routeResults"
-            :key="index"
-            class="route-item"
-          >
+          <div v-for="(route, index) in routeResults" :key="index" class="route-item">
             <div class="route-title">
               路线 {{ index + 1 }} -
               <el-tag :type="getRiskLevelType(route.riskLevel)">
                 风险等级：{{ route.riskLevel }}
               </el-tag>
             </div>
-            <!-- 新增：平均风险值展示 -->
             <div style="margin-bottom: 8px; color: #666;">
               平均风险值：{{ getAvgRisk(index) }}
             </div>
-            <el-carousel height="120px" indicator-position="outside">
-              <el-carousel-item
-                v-for="(city, i) in route.cities"
-                :key="i"
-              >
-                <div class="city-weather">
+            <el-carousel height="120px" indicator-position="outside"
+              :active-index="index === selectedRouteIndex ? carouselActiveIndex : 0"
+              @change="idx => index === selectedRouteIndex && handleCarouselChange(idx)">
+              <el-carousel-item v-for="(city, i) in route.cities" :key="i">
+                <div class="city-weather" :class="{
+                  'highlighted-node': index === selectedRouteIndex && i === carouselActiveIndex
+                }">
                   <strong>{{ city.name }}</strong> - {{ city.weather }}
-                  <div>
-                    温度：{{ city.temperature }}℃ 湿度：{{ city.humidity }}%
-                  </div>
+                  <div>温度：{{ city.temperature }}℃ 湿度：{{ city.humidity }}%</div>
                   <div>风速：{{ city.windSpeed }}级</div>
-                  <!-- 新增：节点风险值展示 -->
                   <div style="margin-top: 4px; color: #c96;">
                     风险值：{{ getNodeRisk(index, i) }}
                   </div>
@@ -82,12 +66,10 @@
               <div class="icon-group">
                 <div class="icon-label">起点：</div>
                 <div class="icon-options">
-                  <div
-                    v-for="(icon, idx) in startIcons"
-                    :key="icon"
-                    style="display:inline-block;text-align:center;width:54px;"
-                  >
-                    <img :src="icon" :class="{selected: selectedIcons.start === icon}" @click="selectedIcons.start = icon" />
+                  <div v-for="(icon, idx) in startIcons" :key="icon"
+                    style="display:inline-block;text-align:center;width:54px;">
+                    <img :src="icon" :class="{ selected: selectedIcons.start === icon }"
+                      @click="selectedIcons.start = icon" />
                     <div class="icon-label-under">
                       {{ idx === 0 ? '不显示' : '起点' + idx }}
                     </div>
@@ -97,12 +79,10 @@
               <div class="icon-group">
                 <div class="icon-label">终点：</div>
                 <div class="icon-options">
-                  <div
-                    v-for="(icon, idx) in endIcons"
-                    :key="icon"
-                    style="display:inline-block;text-align:center;width:54px;"
-                  >
-                    <img :src="icon" :class="{selected: selectedIcons.end === icon}" @click="selectedIcons.end = icon" />
+                  <div v-for="(icon, idx) in endIcons" :key="icon"
+                    style="display:inline-block;text-align:center;width:54px;">
+                    <img :src="icon" :class="{ selected: selectedIcons.end === icon }"
+                      @click="selectedIcons.end = icon" />
                     <div class="icon-label-under">
                       {{ idx === 0 ? '不显示' : '终点' + idx }}
                     </div>
@@ -112,12 +92,10 @@
               <div class="icon-group">
                 <div class="icon-label">路径点：</div>
                 <div class="icon-options">
-                  <div
-                    v-for="(icon, idx) in waypointIcons"
-                    :key="icon"
-                    style="display:inline-block;text-align:center;width:54px;"
-                  >
-                    <img :src="icon" :class="{selected: selectedIcons.waypoint === icon}" @click="selectedIcons.waypoint = icon" />
+                  <div v-for="(icon, idx) in waypointIcons" :key="icon"
+                    style="display:inline-block;text-align:center;width:54px;">
+                    <img :src="icon" :class="{ selected: selectedIcons.waypoint === icon }"
+                      @click="selectedIcons.waypoint = icon" />
                     <div class="icon-label-under">
                       {{ idx === 0 ? '不显示' : '路径点' + idx }}
                     </div>
@@ -150,6 +128,7 @@ const routeData = ref(null) // 存储完整的路线数据
 let map = null
 let polylines = [] // 支持多条路线
 let markers = []   // 节点标记
+const carouselActiveIndex = ref(0) // 当前轮播节点索引
 
 const getRiskLevelType = (level) => {
   const types = {
@@ -237,42 +216,46 @@ function drawAllRoutesOnMap(selectedIdx = 0) {
   })
   // 2. 标记当前选中路线的关键节点
   const currentRoute = plannedRoutes[selectedIdx]
-  if (currentRoute && currentRoute.length > 0) {
-    // 起点
-    if (icons.start !== noneIcon) {
-      markers.push(new window.AMap.Marker({
-        position: currentRoute[0],
-        map,
-        title: '起点',
-        icon: icons.start,
-        zIndex: 200
-      }))
-    }
-    // 终点
-    if (icons.end !== noneIcon) {
-      markers.push(new window.AMap.Marker({
-        position: currentRoute[currentRoute.length - 1],
-        map,
-        title: '终点',
-        icon: icons.end,
-        zIndex: 200
-      }))
-    }
-    // 5个均匀分布的中间点
-    const step = Math.floor(currentRoute.length / 6)
-    if (icons.waypoint !== noneIcon) {
-      for (let i = 1; i <= 5; i++) {
-        const idx = Math.min(i * step, currentRoute.length - 2)
-        markers.push(new window.AMap.Marker({
-          position: currentRoute[idx],
-          map,
-          title: `路径点${i}`,
-          icon: icons.waypoint,
-          zIndex: 150
-        }))
+  const currentCities = routeResults.value[selectedIdx]?.cities;
+  if (currentRoute && currentRoute.length > 0 && currentCities) {
+    const baseSize = 24;
+    currentCities.forEach((city, i) => {
+      let iconUrl;
+      let zIndex = 150;
+      let type = 'waypoint';
+      if (i === 0) {
+        iconUrl = icons.start;
+        zIndex = 200;
+        type = 'start';
+      } else if (i === currentCities.length - 1) {
+        iconUrl = icons.end;
+        zIndex = 200;
+        type = 'end';
+      } else {
+        iconUrl = icons.waypoint;
       }
-    }
-    map.setFitView(polylines.concat(markers))
+      if (iconUrl === noneIcon) return;
+      const marker = new window.AMap.Marker({
+        position: [city.lng, city.lat],
+        map,
+        title: city.name,
+        icon: new window.AMap.Icon({
+          image: iconUrl,
+          size: new window.AMap.Size(baseSize, baseSize),
+          imageSize: new window.AMap.Size(baseSize, baseSize)
+        }),
+        zIndex: zIndex
+      });
+      marker._type = type;
+      marker._nodeIndex = i;
+      marker.on('click', () => {
+        if (selectedRouteIndex.value === selectedIdx) {
+          carouselActiveIndex.value = i;
+        }
+      });
+      markers.push(marker);
+    });
+    map.setFitView(polylines.concat(markers));
   }
 }
 
@@ -301,6 +284,38 @@ function getNodeRisk(routeIdx, nodeIdx) {
   return typeof risk === 'number' ? risk.toFixed(3) : '-';
 }
 
+function handleCarouselChange(idx) {
+  highlightMapMarker(idx)
+  carouselActiveIndex.value = idx
+}
+function highlightMapMarker(nodeIdx) {
+  const icons = getCustomIcons();
+  const baseSize = 24;
+  const highlightSize = baseSize + 4;
+  markers.forEach((marker) => {
+    const isHighlighted = marker._nodeIndex === nodeIdx;
+    let size = isHighlighted ? highlightSize : baseSize;
+    let image;
+    switch (marker._type) {
+      case 'start':
+        image = icons.start;
+        break;
+      case 'end':
+        image = icons.end;
+        break;
+      default:
+        image = icons.waypoint;
+        break;
+    }
+    const icon = new window.AMap.Icon({
+      image,
+      size: new window.AMap.Size(size, size),
+      imageSize: new window.AMap.Size(size, size)
+    });
+    marker.setIcon(icon);
+    marker.setzIndex(isHighlighted ? 300 : (marker._type === 'waypoint' ? 150 : 200));
+  });
+}
 onMounted(() => {
   // 从 localStorage 获取数据
   const data = getRouteDataFromStorage()
@@ -327,6 +342,7 @@ onMounted(() => {
   })
   // 默认绘制第一条路线
   drawAllRoutesOnMap(0)
+  highlightMapMarker(0)
 })
 
 // 监听路线数据变化
@@ -334,6 +350,11 @@ watch(routeResults, (newVal) => {
   if (newVal.length > 0) {
     drawAllRoutesOnMap(selectedRouteIndex.value)
   }
+})
+
+// 监听carouselActiveIndex变化，地图点高亮
+watch(carouselActiveIndex, (newIdx) => {
+  highlightMapMarker(newIdx)
 })
 </script>
 
@@ -352,13 +373,23 @@ watch(routeResults, (newVal) => {
 
       .city-weather {
         background-color: #f9f9f9;
-        padding: 10px;
-        border-radius: 8px;
+        padding: 16px 20px;
+        border-radius: 12px;
         line-height: 1.6;
+        box-sizing: border-box;
+      }
+
+      .city-weather.highlighted-node {
+        border: 2px solid #67C23A;
+        border-radius: 12px;
+        box-shadow: 0 0 12px #67C23A33;
+        background: #f6ffed;
+        transition: border 0.2s, box-shadow 0.2s;
       }
     }
   }
 }
+
 .icon-options img {
   width: 36px;
   height: 36px;
@@ -368,25 +399,30 @@ watch(routeResults, (newVal) => {
   cursor: pointer;
   transition: border 0.2s;
 }
+
 .icon-options img.selected {
   border: 2px solid #409EFF;
   box-shadow: 0 0 8px #409EFF55;
 }
+
 .icon-label {
   font-weight: bold;
   margin-bottom: 4px;
 }
+
 .icon-group {
   margin-bottom: 18px;
   display: flex;
   align-items: center;
 }
+
 .icon-none-label {
   font-size: 12px;
   color: #888;
   text-align: center;
   margin-top: -6px;
 }
+
 .icon-label-under {
   font-size: 12px;
   color: #888;
@@ -395,6 +431,7 @@ watch(routeResults, (newVal) => {
   height: 18px;
   line-height: 18px;
 }
+
 .icon-options {
   display: flex;
   flex-direction: row;
