@@ -39,16 +39,23 @@
 import { ref, nextTick } from 'vue';
 import { UserFilled, Cpu, Promotion } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import axios from 'axios'; // 假设您会使用 axios 进行后端通信
 
 const messages = ref([
   { role: 'ai', content: '您好！我是您的智能助手，有什么可以帮助您的吗？' }
 ]);
 const currentInput = ref('');
 const isLoading = ref(false);
-const chatMessages = ref(null); // 用于滚动到底部
+const chatMessages = ref(null);
 
-const sendMessage = async () => {
+function scrollToBottom() {
+  nextTick(() => {
+    if (chatMessages.value) {
+      chatMessages.value.scrollTop = chatMessages.value.scrollHeight;
+    }
+  });
+}
+
+const sendMessage = () => {
   if (!currentInput.value.trim()) {
     ElMessage.warning('请输入内容！');
     return;
@@ -60,29 +67,29 @@ const sendMessage = async () => {
   scrollToBottom();
 
   isLoading.value = true;
-  try {
-    const response = await axios.post('http://localhost:4550/api/chat', {
-      question: userMessage, // ✅必须是question字段
-    });
 
-    const aiResponse = response.data.answer || '抱歉，我暂时无法回答您的问题。'; // ✅后端返回字段是answer
-    messages.value.push({ role: 'ai', content: aiResponse });
-  } catch (error) {
-    console.error('AI聊天请求失败:', error);
-    messages.value.push({ role: 'ai', content: '抱歉，与AI助手的通信出现问题，请稍后再试。' });
-    ElMessage.error('AI聊天请求失败！');
-  } finally {
-    isLoading.value = false;
+  messages.value.push({ role: 'ai', content: '' });
+  const aiMsgIndex = messages.value.length - 1;
+
+  const encodedQuestion = encodeURIComponent(userMessage);
+  const evtSource = new EventSource(`http://localhost:4550/api/chat/stream?question=${encodedQuestion}`);
+
+  evtSource.onmessage = (event) => {
+    // 去掉所有星号，替换 \\n 为真实换行符
+    messages.value[aiMsgIndex].content += event.data.replace(/\*/g, '').replace(/\\n/g, '\n');
     scrollToBottom();
-  }
-};
+  };
 
+  evtSource.addEventListener('end', () => {
+    isLoading.value = false;
+    evtSource.close();
+  });
 
-const scrollToBottom = () => {
-  nextTick(() => {
-    if (chatMessages.value) {
-      chatMessages.value.scrollTop = chatMessages.value.scrollHeight;
-    }
+  evtSource.addEventListener('error', (e) => {
+    ElMessage.error('与AI通信出错，请稍后重试');
+    messages.value[aiMsgIndex].content += '\n[错误] 无法获取回答。';
+    isLoading.value = false;
+    evtSource.close();
   });
 };
 </script>
@@ -145,13 +152,13 @@ const scrollToBottom = () => {
 }
 
 .message-item.user .avatar {
-  order: 2; /* 用户头像在右侧 */
+  order: 2;
   margin-left: 10px;
   margin-right: 0;
 }
 
 .message-item.ai .avatar {
-  order: 1; /* AI头像在左侧 */
+  order: 1;
   margin-right: 10px;
   margin-left: 0;
 }
@@ -161,7 +168,7 @@ const scrollToBottom = () => {
   padding: 10px 15px;
   border-radius: 15px;
   word-wrap: break-word;
-  white-space: pre-wrap; /* 保留换行符和空格 */
+  white-space: pre-wrap; /* 重要：保留换行符显示 */
 }
 
 .message-item.user .content {
