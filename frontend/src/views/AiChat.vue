@@ -67,7 +67,7 @@ import { UserFilled, Cpu, Promotion } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
 const messages = ref([
-  { role: 'ai', content: '您好，我是道路安全助手，请问有什么可以为我服务？' }
+  { role: 'ai', content: '您好，我是道路安全助手，请问有什么可以为你服务？' }
 ]);
 const currentInput = ref('');
 const isLoading = ref(false);
@@ -75,7 +75,7 @@ const chatMessages = ref(null);
 
 const quickQuestions = [
   '雨天出行注意什么？',
-  '高峰期怎么避堵？',
+  '出门前需要检查什么？',
   '骑电动车有什么风险？',
   '夜间开车注意什么？',
   '我怎么规划安全路线？'
@@ -83,7 +83,7 @@ const quickQuestions = [
 
 const quickAnswers = {
   '雨天出行注意什么？': '雨天路滑，低速慢行，避开井盖，行车保持车距。',
-  '高峰期怎么避堵？': '建议错峰出行或使用实时导航避开高峰路段。',
+  '出门前需要检查什么？': '出门前请检查轮胎状况、刹车是否正常，确保油量充足，雨刮器有效。',
   '骑电动车有什么风险？': '注意佩戴头盔，雨天慢行防滑，避开机动车道。',
   '夜间开车注意什么？': '注意开近光灯，避免疲劳驾驶，减速慢行。',
   '我怎么规划安全路线？': '请提供起点和终点，我帮您推荐低风险路线。'
