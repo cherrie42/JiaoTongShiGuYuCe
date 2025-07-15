@@ -26,11 +26,18 @@ router.post('/sendCode', async (req, res) => {
 
 // 注册接口
 router.post('/register', async (req, res) => {
-  const { username, email, password, code } = req.body
+  const { username, email, password, code, role, superAdminPassword } = req.body
 
   try {
     if (!verifyCode(email, code)) {
       return res.status(400).json({ code: 400, message: '验证码错误或已过期', data: null })
+    }
+
+    // 如果角色是管理员，则检查超级管理员密码是否正确
+    if (role === 'admin') {
+      if (superAdminPassword !== '040611') {
+        return res.status(400).json({ code: 400, message: '超级管理员密码错误', data: null })
+      }
     }
 
     const [rows] = await db.query('SELECT * FROM user WHERE email = ?', [email])
@@ -40,8 +47,8 @@ router.post('/register', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10)
     await db.query(
-      'INSERT INTO user (username, email, password) VALUES (?, ?, ?)',
-      [username, email, hashedPassword]
+      'INSERT INTO user (username, email, password, role) VALUES (?, ?, ?, ?)',
+      [username, email, hashedPassword, role || 'user']
     )
 
     clearCode(email)
@@ -70,7 +77,7 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'your_jwt_secret',
       { expiresIn: '7d' }
     )
@@ -83,7 +90,8 @@ router.post('/login', async (req, res) => {
         user: {
           id: user.id,
           username: user.username,
-          email: user.email
+          email: user.email,
+          role: user.role  // 登录时返回角色信息，方便前端控制权限
         }
       }
     })

@@ -46,25 +46,29 @@ const cards = [
     title: '数据管理',
     description: '管理历史事故数据，支持数据导入导出和编辑',
     icon: DataLine,
-    path: '/home/data'
+    path: '/home/data',
+    roles: ['admin', 'user']
   },
   {
     title: '路径规划',
     description: '智能推荐路线并显示沿途天气和风险等级',
     icon: Location,
-    path: '/home/route-planning'
+    path: '/home/route-planning',
+    roles: ['admin', 'user']
   },
   {
     title: '事故预测',
     description: '基于机器学习的事故风险预测和分析',
     icon: TrendCharts,
-    path: '/home/prediction'
+    path: '/home/prediction',
+    roles: ['admin', 'user']
   },
   {
     title: '数据分析',
     description: '多维度数据分析和可视化展示',
     icon: PieChart,
-    path: '/home/analysis'
+    path: '/home/analysis',
+    roles: ['admin', 'user']
   }
 ]
 

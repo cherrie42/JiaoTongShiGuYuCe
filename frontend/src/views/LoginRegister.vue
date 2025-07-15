@@ -1,24 +1,10 @@
 <template>
   <div class="auth-wrapper">
-    <!-- ✅ 添加 Logo 图片 -->
     <img src="@/image/logo.png" alt="Logo" class="page-logo" />
-
     <div class="auth-card" :class="{ 'register-mode': mode === 'register' }">
       <div class="toggle-btns">
-        <button
-          :class="{ active: mode === 'login' }"
-          @click="mode = 'login'"
-          aria-label="登录"
-        >
-          登录
-        </button>
-        <button
-          :class="{ active: mode === 'register' }"
-          @click="mode = 'register'"
-          aria-label="注册"
-        >
-          注册
-        </button>
+        <button :class="{ active: mode === 'login' }" @click="mode = 'login'">登录</button>
+        <button :class="{ active: mode === 'register' }" @click="mode = 'register'">注册</button>
       </div>
 
       <transition name="fade-slide" mode="out-in">
@@ -31,6 +17,28 @@
           class="auth-form"
           @submit.prevent
         >
+          <!-- 角色选择 -->
+          <el-form-item label="角色" prop="role">
+            <el-radio-group v-model="form.role">
+              <el-radio label="user">普通用户</el-radio>
+              <el-radio label="admin">管理员</el-radio>
+            </el-radio-group>
+          </el-form-item>
+
+          <!-- 超级管理员密码，仅在注册页面并且角色为管理员时显示 -->
+          <el-form-item
+            v-if="mode === 'register' && form.role === 'admin'"
+            label="超级管理员密码"
+            prop="superAdminPassword"
+          >
+            <el-input
+              v-model="form.superAdminPassword"
+              type="password"
+              placeholder="请输入超级管理员密码"
+              show-password
+            />
+          </el-form-item>
+
           <template v-if="mode === 'register'">
             <el-form-item label="用户名" prop="username">
               <el-input v-model="form.username" placeholder="请输入用户名" />
@@ -38,31 +46,26 @@
           </template>
 
           <el-form-item label="邮箱" prop="email">
-  <template v-if="mode === 'register'">
-    <el-input
-      v-model="form.email"
-      placeholder="请输入邮箱"
-      style="width: calc(100% - 120px);"
-    />
-    <el-button
-      :disabled="sendCodeLoading || countdown > 0"
-      @click="sendCode"
-      size="small"
-      style="margin-left: 8px; width: 100px;"
-    >
-      <template v-if="countdown === 0">发送验证码</template>
-      <template v-else>{{ countdown }} 秒后重发</template>
-    </el-button>
-  </template>
-  <template v-else>
-    <el-input
-      v-model="form.email"
-      placeholder="请输入邮箱"
-      style="width: 100%;"
-    />
-  </template>
-</el-form-item>
-
+            <template v-if="mode === 'register'">
+              <el-input
+                v-model="form.email"
+                placeholder="请输入邮箱"
+                style="width: calc(100% - 120px);"
+              />
+              <el-button
+                :disabled="sendCodeLoading || countdown > 0"
+                @click="sendCode"
+                size="small"
+                style="margin-left: 8px; width: 100px;"
+              >
+                <template v-if="countdown === 0">发送验证码</template>
+                <template v-else>{{ countdown }} 秒后重发</template>
+              </el-button>
+            </template>
+            <template v-else>
+              <el-input v-model="form.email" placeholder="请输入邮箱" style="width: 100%;" />
+            </template>
+          </el-form-item>
 
           <template v-if="mode === 'register'">
             <el-form-item label="验证码" prop="code">
@@ -116,20 +119,21 @@ import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { login, register, sendVerificationCode } from '@/api/user'
 
-const mode = ref('login') // login or register
+const mode = ref('login')
 const loading = ref(false)
 const sendCodeLoading = ref(false)
 const countdown = ref(0)
 let timer = null
-
 const formRef = ref(null)
 
 const form = ref({
   username: '',
   email: '',
-  code: '',           // 这里改成 code
+  code: '',
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
+  role: 'user',
+  superAdminPassword: ''
 })
 
 const rules = {
@@ -139,15 +143,9 @@ const rules = {
   ],
   email: [
     { required: true, message: '请输入邮箱', trigger: 'blur' },
-    {
-      type: 'email',
-      message: '请输入正确的邮箱地址',
-      trigger: ['blur', 'change']
-    }
+    { type: 'email', message: '请输入正确的邮箱地址', trigger: ['blur', 'change'] }
   ],
-  code: [               // 这里也改成 code
-    { required: true, message: '请输入验证码', trigger: 'blur' }
-  ],
+  code: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码长度至少6位', trigger: 'blur' }
@@ -164,28 +162,43 @@ const rules = {
       },
       trigger: 'blur'
     }
+  ],
+  role: [{ required: true, message: '请选择角色', trigger: 'change' }],
+  superAdminPassword: [
+    {
+      required: true,
+      validator(rule, value, callback) {
+        if (form.value.role === 'admin' && !value) {
+          callback(new Error('请输入超级管理员密码'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
   ]
 }
 
-// 根据当前模式动态返回规则
 const getRules = computed(() => {
   if (mode.value === 'login') {
     return {
       email: rules.email,
-      password: rules.password
+      password: rules.password,
+      role: rules.role 
     }
   } else {
     return {
       username: rules.username,
       email: rules.email,
-      code: rules.code,          // 这里改成 code
+      code: rules.code,
       password: rules.password,
-      confirmPassword: rules.confirmPassword
+      confirmPassword: rules.confirmPassword,
+      role: rules.role,
+      ...(form.value.role === 'admin' && { superAdminPassword: rules.superAdminPassword })
     }
   }
 })
 
-// 发送验证码函数
 const sendCode = async () => {
   if (!form.value.email) {
     ElMessage.warning('请先输入邮箱')
@@ -215,30 +228,28 @@ const startCountdown = () => {
 
 const submitForm = () => {
   formRef.value.validate(async (valid) => {
-    if (!valid) {
-      console.log('校验不通过')
-      return
-    }
+    if (!valid) return
     loading.value = true
     try {
       if (mode.value === 'login') {
         const res = await login({ email: form.value.email, password: form.value.password })
         ElMessage.success('登录成功！')
         localStorage.setItem('token', res.token)
+        localStorage.setItem('role', res.role)
         router.push('/home')
       } else {
-        console.log('准备调用注册接口', form.value)
         await register({
           username: form.value.username,
           email: form.value.email,
           password: form.value.password,
-          code: form.value.code          // 这里改成 code
+          code: form.value.code,
+          role: form.value.role,
+          superAdminPassword: form.value.role === 'admin' ? form.value.superAdminPassword : undefined
         })
         ElMessage.success('注册成功！请登录')
         mode.value = 'login'
       }
     } catch (error) {
-      console.error('请求失败', error)
       ElMessage.error(error.response?.data?.message || '请求失败，请稍后重试')
     } finally {
       loading.value = false
@@ -252,7 +263,9 @@ const enterApp = () => {
 }
 </script>
 
+
 <style scoped lang="scss">
+
 .auth-wrapper {
   height: 100vh;
   display: flex;

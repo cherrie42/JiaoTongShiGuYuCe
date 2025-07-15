@@ -16,7 +16,7 @@
         text-color="#fff"
         active-text-color="#409EFF"
       >
-        <el-menu-item index="/home/data">
+        <el-menu-item index="/home/data" >
           <el-icon><DataLine /></el-icon>
           <span>数据管理</span>
         </el-menu-item>
