@@ -146,12 +146,15 @@ app.post('/api/predict', async (req, res) => {
     }
 
     // 进行预测
-    const probability = trainer.predictor.predictSingle(data);
+    const result = trainer.predictor.predictSingle(data);
 
     res.json({
       success: true,
-      probability: probability,  // 事故发生的概率 (0-1)
-      risk_level: probability < 0.3 ? '低风险' : probability < 0.7 ? '中风险' : '高风险',
+      probability: {
+        accident_prob: result.accident_prob,
+        crash_type: result.crash_type 
+      }, 
+      risk_level: result.accident_prob < 0.1 ? '低风险' : result.accident_prob < 0.3 ? '中风险' : '高风险',
       message: '预测完成'
     });
 

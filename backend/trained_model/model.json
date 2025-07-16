@@ -1,9 +1,24 @@
 {
-  "class_name": "Sequential",
+  "class_name": "Model",
   "config": {
-    "name": "sequential_1",
+    "name": "model1",
     "layers": [
       {
+        "name": "input1",
+        "class_name": "InputLayer",
+        "config": {
+          "batch_input_shape": [
+            null,
+            14
+          ],
+          "dtype": "float32",
+          "sparse": false,
+          "name": "input1"
+        },
+        "inbound_nodes": []
+      },
+      {
+        "name": "dense_Dense1",
         "class_name": "Dense",
         "config": {
           "units": 64,
@@ -28,25 +43,42 @@
           "kernel_constraint": null,
           "bias_constraint": null,
           "name": "dense_Dense1",
-          "trainable": true,
-          "batch_input_shape": [
-            null,
-            14
-          ],
-          "dtype": "float32"
-        }
+          "trainable": true
+        },
+        "inbound_nodes": [
+          [
+            [
+              "input1",
+              0,
+              0,
+              {}
+            ]
+          ]
+        ]
       },
       {
+        "name": "dropout_Dropout1",
         "class_name": "Dropout",
         "config": {
-          "rate": null,
+          "rate": 0.3,
           "noise_shape": null,
           "seed": null,
           "name": "dropout_Dropout1",
           "trainable": true
-        }
+        },
+        "inbound_nodes": [
+          [
+            [
+              "dense_Dense1",
+              0,
+              0,
+              {}
+            ]
+          ]
+        ]
       },
       {
+        "name": "dense_Dense2",
         "class_name": "Dense",
         "config": {
           "units": 32,
@@ -72,19 +104,41 @@
           "bias_constraint": null,
           "name": "dense_Dense2",
           "trainable": true
-        }
+        },
+        "inbound_nodes": [
+          [
+            [
+              "dropout_Dropout1",
+              0,
+              0,
+              {}
+            ]
+          ]
+        ]
       },
       {
+        "name": "dropout_Dropout2",
         "class_name": "Dropout",
         "config": {
-          "rate": null,
+          "rate": 0.2,
           "noise_shape": null,
           "seed": null,
           "name": "dropout_Dropout2",
           "trainable": true
-        }
+        },
+        "inbound_nodes": [
+          [
+            [
+              "dense_Dense2",
+              0,
+              0,
+              {}
+            ]
+          ]
+        ]
       },
       {
+        "name": "dense_Dense3",
         "class_name": "Dense",
         "config": {
           "units": 16,
@@ -110,9 +164,20 @@
           "bias_constraint": null,
           "name": "dense_Dense3",
           "trainable": true
-        }
+        },
+        "inbound_nodes": [
+          [
+            [
+              "dropout_Dropout2",
+              0,
+              0,
+              {}
+            ]
+          ]
+        ]
       },
       {
+        "name": "accident_prob",
         "class_name": "Dense",
         "config": {
           "units": 1,
@@ -136,10 +201,78 @@
           "activity_regularizer": null,
           "kernel_constraint": null,
           "bias_constraint": null,
-          "name": "dense_Dense4",
+          "name": "accident_prob",
           "trainable": true
-        }
+        },
+        "inbound_nodes": [
+          [
+            [
+              "dense_Dense3",
+              0,
+              0,
+              {}
+            ]
+          ]
+        ]
+      },
+      {
+        "name": "crash_type",
+        "class_name": "Dense",
+        "config": {
+          "units": 18,
+          "activation": "softmax",
+          "use_bias": true,
+          "kernel_initializer": {
+            "class_name": "VarianceScaling",
+            "config": {
+              "scale": 1,
+              "mode": "fan_avg",
+              "distribution": "normal",
+              "seed": null
+            }
+          },
+          "bias_initializer": {
+            "class_name": "Zeros",
+            "config": {}
+          },
+          "kernel_regularizer": null,
+          "bias_regularizer": null,
+          "activity_regularizer": null,
+          "kernel_constraint": null,
+          "bias_constraint": null,
+          "name": "crash_type",
+          "trainable": true
+        },
+        "inbound_nodes": [
+          [
+            [
+              "dense_Dense3",
+              0,
+              0,
+              {}
+            ]
+          ]
+        ]
       }
+    ],
+    "input_layers": [
+      [
+        "input1",
+        0,
+        0
+      ]
+    ],
+    "output_layers": [
+      [
+        "accident_prob",
+        0,
+        0
+      ],
+      [
+        "crash_type",
+        0,
+        0
+      ]
     ]
   },
   "keras_version": "tfjs-layers 4.22.0",

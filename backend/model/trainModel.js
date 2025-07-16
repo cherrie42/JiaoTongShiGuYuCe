@@ -41,7 +41,8 @@ class ModelTrainer {
           intersection_related_i,
           crash_hour,
           crash_day_of_week,
-          crash_month
+          crash_month,
+          first_crash_type
         FROM traffic_accidents 
         ORDER BY RAND()
         LIMIT ${parseInt(limit)}`
@@ -62,20 +63,13 @@ class ModelTrainer {
   async trainAndSaveModelFromDatabase(limit = 5000) {
     try {
       console.log('开始从数据库训练模型...');
-      
-      // 从数据库获取数据
       const data = await this.getDataFromDatabase(limit);
-      
       if (data.length === 0) {
         throw new Error('数据库中没有找到训练数据');
       }
-      
-      // 训练模型
+      // 训练模型（内部自动保存模型和特征重要性）
       const result = await this.predictor.trainWithData(data);
-      
       if (result.success) {
-        // 保存模型和预处理参数
-        await this.saveModel();
         console.log('模型训练完成并已保存');
         return result;
       } else {
@@ -91,13 +85,8 @@ class ModelTrainer {
   async trainAndSaveModel(dataPath) {
     try {
       console.log('开始训练模型...');
-      
-      // 训练模型
       const result = await this.predictor.loadAndTrain(dataPath);
-      
       if (result.success) {
-        // 保存模型和预处理参数
-        await this.saveModel();
         console.log('模型训练完成并已保存');
         return result;
       } else {
@@ -109,115 +98,16 @@ class ModelTrainer {
     }
   }
 
-  // 保存模型和预处理参数
+  // 保存模型和预处理参数（已集成到aiModel，不再需要）
   async saveModel() {
-    try {
-      if (!fs.existsSync(this.modelPath)) {
-        fs.mkdirSync(this.modelPath);
-      }
-
-      // 保存结构
-      const modelTopology = this.predictor.model.toJSON();
-      // toJSON() 返回的是字符串，需要先解析成对象
-      const modelTopologyObj = JSON.parse(modelTopology);
-      fs.writeFileSync(
-        path.join(this.modelPath, 'model.json'),
-        JSON.stringify(modelTopologyObj, null, 2)
-      );
-
-      // 保存权重
-      const weights = await this.predictor.model.getWeights();
-      const weightsData = [];
-      for (let w of weights) {
-        weightsData.push({
-          data: Array.from(await w.data()),
-          shape: w.shape,
-          dtype: w.dtype
-        });
-      }
-      fs.writeFileSync(
-        path.join(this.modelPath, 'weights.json'),
-        JSON.stringify(weightsData, null, 2)
-      );
-
-      // 保存预处理参数
-      const preprocessingParams = {
-        labelEncoder: this.predictor.labelEncoder,
-        scaler: {
-          mean: await this.predictor.scaler.mean.array(),
-          std: await this.predictor.scaler.std.array()
-        },
-        featureNames: this.predictor.featureNames
-      };
-      fs.writeFileSync(
-        path.join(this.modelPath, 'preprocessing.json'),
-        JSON.stringify(preprocessingParams, null, 2)
-      );
-
-      console.log('模型和预处理参数已保存');
-    } catch (error) {
-      console.error('保存模型失败:', error);
-      throw error;
-    }
+    // 已由aiModel.saveModel()自动完成
+    return;
   }
 
   // 加载已训练的模型
   async loadTrainedModel() {
     try {
-      const modelJsonPath = path.join(this.modelPath, 'model.json');
-      const weightsPath = path.join(this.modelPath, 'weights.json');
-      const preprocessingPath = path.join(this.modelPath, 'preprocessing.json');
-
-      if (!fs.existsSync(modelJsonPath) || !fs.existsSync(weightsPath) || !fs.existsSync(preprocessingPath)) {
-        throw new Error('模型文件不存在，请先训练模型');
-      }
-
-      // 读取结构
-      const modelTopology = JSON.parse(fs.readFileSync(modelJsonPath, 'utf8'));
-      if (modelTopology.class_name !== 'Sequential') {
-        throw new Error('只支持Sequential模型结构');
-      }
-      // 重建模型结构
-      const model = tf.sequential();
-      modelTopology.config.layers.forEach((layer, idx) => {
-        if (layer.class_name === 'Dense') {
-          const config = layer.config;
-          const layerConfig = {
-            units: config.units,
-            activation: config.activation,
-          };
-          if (idx === 0) {
-            layerConfig.inputShape = [config.batch_input_shape[1]];
-          }
-          model.add(tf.layers.dense(layerConfig));
-        } else if (layer.class_name === 'Dropout') {
-          const config = layer.config;
-          model.add(tf.layers.dropout({
-            rate: config.rate || 0.2
-          }));
-        } else {
-          throw new Error(`暂不支持的层类型: ${layer.class_name}`);
-        }
-      });
-      // 读取权重
-      const weightsData = JSON.parse(fs.readFileSync(weightsPath, 'utf8'));
-      const weights = weightsData.map(w =>
-        tf.tensor(w.data, w.shape, w.dtype)
-      );
-      model.setWeights(weights);
-      this.predictor.model = model;
-
-      // 加载预处理参数
-      const preprocessingParams = JSON.parse(
-        fs.readFileSync(preprocessingPath, 'utf8')
-      );
-      this.predictor.labelEncoder = preprocessingParams.labelEncoder;
-      this.predictor.scaler = {
-        mean: tf.tensor(preprocessingParams.scaler.mean),
-        std: tf.tensor(preprocessingParams.scaler.std)
-      };
-      this.predictor.featureNames = preprocessingParams.featureNames;
-
+      await this.predictor.loadModel();
       console.log('模型加载成功');
       return true;
     } catch (error) {
