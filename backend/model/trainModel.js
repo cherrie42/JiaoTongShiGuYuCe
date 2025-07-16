@@ -98,12 +98,6 @@ class ModelTrainer {
     }
   }
 
-  // 保存模型和预处理参数（已集成到aiModel，不再需要）
-  async saveModel() {
-    // 已由aiModel.saveModel()自动完成
-    return;
-  }
-
   // 加载已训练的模型
   async loadTrainedModel() {
     try {

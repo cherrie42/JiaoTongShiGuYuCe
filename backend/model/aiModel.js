@@ -103,7 +103,7 @@ class TrafficAccidentPredictor {
     const normalizedFeatures = featureTensor.sub(mean).div(std);
     return {
       features: normalizedFeatures,
-      accidentProbTargets: tf.tensor2d(accidentProbTargets, [accidentProbTargets.length, 1]),
+      accidentProbTargets: tf.tensor2d(accidentProbTargets, [accidentProbTargets.length, 1], 'float32'), // 改回二维
       crashTypeTargets: tf.tensor2d(crashTypeOneHot, [crashTypeOneHot.length, this.numCrashTypes])
     };
   }
@@ -128,14 +128,17 @@ class TrafficAccidentPredictor {
         accident_prob: 'binaryCrossentropy',
         crash_type: 'categoricalCrossentropy'
       },
-      metrics: ['accuracy']
+      metrics: {
+        accident_prob: ['accuracy'],
+        crash_type: ['accuracy']
+      }
     });
     console.log('模型创建完成');
   }
 
   // 训练模型
   async trainModel(trainFeatures, trainAccidentProb, trainCrashType, valFeatures, valAccidentProb, valCrashType) {
-    console.log('开始训练多输出模型...');
+    console.log('开始训练MTL-NN...');
     const inputShape = trainFeatures.shape[1];
     const numCrashTypes = trainCrashType.shape[1];
     this.createModel(inputShape, numCrashTypes);
@@ -162,12 +165,30 @@ class TrafficAccidentPredictor {
           verbose: 0
         }
       );
+      console.log('h.history:', h.history); // 新增打印
       const loss = h.history.loss[0];
       const val_loss = h.history.val_loss[0];
+      // 分别获取两个输出的准确率（修正字段名）
+      const acc_accident = h.history['accident_prob_acc'] ? h.history['accident_prob_acc'][0] : NaN;
+      const acc_crash = h.history['crash_type_acc'] ? h.history['crash_type_acc'][0] : NaN;
+      const val_acc_accident = h.history['val_accident_prob_acc'] ? h.history['val_accident_prob_acc'][0] : NaN;
+      const val_acc_crash = h.history['val_crash_type_acc'] ? h.history['val_crash_type_acc'][0] : NaN;
       history.loss.push(loss);
       history.val_loss.push(val_loss);
+      history.acc_accident = history.acc_accident || [];
+      history.acc_crash = history.acc_crash || [];
+      history.val_acc_accident = history.val_acc_accident || [];
+      history.val_acc_crash = history.val_acc_crash || [];
+      history.acc_accident.push(acc_accident);
+      history.acc_crash.push(acc_crash);
+      history.val_acc_accident.push(val_acc_accident);
+      history.val_acc_crash.push(val_acc_crash);
       if (epoch % 5 === 0 || epoch === 1) {
-        console.log(`第${epoch}轮 -> 损失: ${loss.toFixed(4)}, 验证损失: ${val_loss.toFixed(4)}`);
+        console.log(`第${epoch}轮 -> 损失: ${loss.toFixed(4)}, 验证损失: ${val_loss.toFixed(4)}, ` +
+          `事故概率acc: ${acc_accident !== undefined ? acc_accident.toFixed(4) : 'N/A'}, ` +
+          `碰撞类型acc: ${acc_crash !== undefined ? acc_crash.toFixed(4) : 'N/A'}, ` +
+          `验证事故概率acc: ${val_acc_accident !== undefined ? val_acc_accident.toFixed(4) : 'N/A'}, ` +
+          `验证碰撞类型acc: ${val_acc_crash !== undefined ? val_acc_crash.toFixed(4) : 'N/A'}`);
       }
       if (val_loss < bestValLoss) {
         bestValLoss = val_loss;
@@ -187,7 +208,10 @@ class TrafficAccidentPredictor {
                 accident_prob: 'binaryCrossentropy',
                 crash_type: 'categoricalCrossentropy'
               },
-              metrics: ['accuracy']
+              metrics: {
+                accident_prob: ['accuracy'],
+                crash_type: ['accuracy']
+              }
             });
             console.log(`[ReduceLROnPlateau] 验证损失未提升，学习率降低为${lr}`);
           }
