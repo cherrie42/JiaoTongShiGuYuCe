@@ -291,7 +291,7 @@ function handleCarouselChange(idx) {
 function highlightMapMarker(nodeIdx) {
   const icons = getCustomIcons();
   const baseSize = 24;
-  const highlightSize = baseSize + 4;
+  const highlightSize = baseSize + 7;
   markers.forEach((marker) => {
     const isHighlighted = marker._nodeIndex === nodeIdx;
     let size = isHighlighted ? highlightSize : baseSize;

@@ -222,6 +222,47 @@ const sendRouteDataToBackend = async (origin, destination, departTime, vehicleTy
     for (const route of routeResults) {
       const routePath = route.steps.flatMap(step => step.path)
       const waypoints = await generateWaypoints(routePath)
+      const N = 20; // 采样点数
+      const WINDOW_M = 1000; // 采样窗口，前后各1公里
+      // 计算两点间距离（单位：米）
+      function haversine(lat1, lng1, lat2, lng2) {
+        const toRad = deg => deg * Math.PI / 180;
+        const R = 6371000; // 地球半径，米
+        const dLat = toRad(lat2 - lat1);
+        const dLng = toRad(lng2 - lng1);
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+      }
+      for (let i = 0; i < waypoints.length; i++) {
+        const idx = routePath.findIndex(p => p.lat === waypoints[i].lat && p.lng === waypoints[i].lng);
+        // 前1km
+        let prevPoints = [];
+        let dist = 0;
+        for (let j = idx - 1; j >= 0 && dist < WINDOW_M; j--) {
+          const d = haversine(routePath[j].lat, routePath[j].lng, routePath[j + 1].lat, routePath[j + 1].lng);
+          dist += d;
+          if (dist <= WINDOW_M) prevPoints.unshift(routePath[j]);
+        }
+        // 后1km
+        let nextPoints = [];
+        dist = 0;
+        for (let j = idx + 1; j < routePath.length && dist < WINDOW_M; j++) {
+          const d = haversine(routePath[j].lat, routePath[j].lng, routePath[j - 1].lat, routePath[j - 1].lng);
+          dist += d;
+          if (dist <= WINDOW_M) nextPoints.push(routePath[j]);
+        }
+        // 等距采样
+        function samplePoints(arr, n) {
+          if (arr.length <= n) return arr;
+          const step = arr.length / n;
+          return Array.from({ length: n }, (_, k) => arr[Math.floor(k * step)]);
+        }
+        const prevNeighbors = samplePoints(prevPoints, N);
+        const nextNeighbors = samplePoints(nextPoints, N);
+        // 修正：统一 neighbor 为 {lat, lng} 对象格式
+        waypoints[i].neighbors = [...prevNeighbors, ...nextNeighbors].map(p => ({ lat: p.lat, lng: p.lng }));
+      }
       paths.push({
         origin: originInfo,
         destination: destInfo,
