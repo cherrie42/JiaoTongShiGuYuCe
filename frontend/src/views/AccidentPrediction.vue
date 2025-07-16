@@ -31,7 +31,7 @@
             <div style="margin-bottom: 8px; color: #666;">
               平均风险值：{{ getAvgRisk(index) }}
             </div>
-            <el-carousel height="120px" indicator-position="outside"
+            <el-carousel height="200px" indicator-position="outside"
               :active-index="index === selectedRouteIndex ? carouselActiveIndex : 0"
               @change="idx => index === selectedRouteIndex && handleCarouselChange(idx)">
               <el-carousel-item v-for="(city, i) in route.cities" :key="i">
@@ -41,6 +41,7 @@
                   <strong>{{ city.name }}</strong> - {{ city.weather }}
                   <div>温度：{{ city.temperature }}℃ 湿度：{{ city.humidity }}%</div>
                   <div>风速：{{ city.windSpeed }}级</div>
+                  <div>事故类型：{{ city.crashType || '未知' }}</div>
                   <div style="margin-top: 4px; color: #c96;">
                     风险值：{{ getNodeRisk(index, i) }}
                   </div>

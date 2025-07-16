@@ -101,6 +101,7 @@
           </template>
           <el-table :data="highRiskPoints" height="250">
             <el-table-column prop="risk" label="风险值" width="80" />
+            <el-table-column prop="crashType" label="事故类型" width="120" />
             <el-table-column prop="description" label="说明" />
             <el-table-column prop="suggestion" label="建议" />
           </el-table>
@@ -305,6 +306,7 @@ const initMap = (routePoints) => {
         <div>
           <h4>高风险点</h4>
           <p>风险值: ${point.risk}</p>
+          <p>事故类型: ${point.crashType || '未知'}</p>
           <p>说明: ${point.description}</p>
           <p>建议: ${point.suggestion}</p>
         </div>

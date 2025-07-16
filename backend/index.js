@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2');
-const WeatherService = require('./services/weatherService');
+const CorePredictionService = require('./services/core_prediction_service');
 const ModelTrainer = require('./model/trainModel');
 
 
@@ -195,7 +195,7 @@ app.get('/api/model/importance', async (req, res) => {
 });
 
 // 天气相关接口
-const weatherService = new WeatherService();
+const corePredictionService = new CorePredictionService();
 
 // 处理路线规划请求
 app.post('/api/plan', async (req, res) => {
@@ -203,7 +203,7 @@ app.post('/api/plan', async (req, res) => {
     const routeData = req.body;
     console.log('收到前端路线规划请求:');
     console.dir(routeData, { depth: null });
-    const result = await weatherService.handleRoutePlanning(routeData);
+    const result = await corePredictionService.handleRoutePlanning(routeData);
 
     if (result.success) {
       res.json({
