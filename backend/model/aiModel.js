@@ -19,11 +19,15 @@ class TrafficAccidentPredictor {
   }
 
   // 数据预处理
-  preprocessData(data) {
+  preprocessData(data, isTraining = true) {
     console.log('开始数据预处理...');
     
-    // 使用全部数据
-    console.log(`使用全部 ${data.length} 条记录进行训练`);
+    // 根据用途显示不同的信息
+    if (isTraining) {
+      console.log(`使用全部 ${data.length} 条记录进行训练`);
+    } else {
+      console.log(`使用全部 ${data.length} 条记录进行测试`);
+    }
 
     // 分离特征和目标变量
     const features = [];
@@ -33,7 +37,7 @@ class TrafficAccidentPredictor {
       const featureRow = [];
       
       this.featureNames.forEach(feature => {
-        let value = row[feature];
+        let value = this.handleMissingValue(feature, row[feature]);
         
         // 处理日期特征
         if (feature === 'crash_date') {
@@ -267,7 +271,7 @@ class TrafficAccidentPredictor {
     const features = [];
     
     this.featureNames.forEach(feature => {
-      let value = data[feature];
+      let value = this.handleMissingValue(feature, data[feature]);
       
       if (feature === 'crash_date') {
         const date = new Date(value);
@@ -278,10 +282,10 @@ class TrafficAccidentPredictor {
         if (this.labelEncoder[feature] && value in this.labelEncoder[feature]) {
           features.push(this.labelEncoder[feature][value]);
         } else {
-          features.push(0); // 默认值
+          features.push(this.getDefaultValue(feature)); // 使用合理的默认值
         }
       } else {
-        features.push(Number(value) || 0);
+        features.push(Number(value) || this.getDefaultValue(feature));
       }
     });
     
@@ -322,8 +326,8 @@ class TrafficAccidentPredictor {
       console.log(`测试集标签分布：正样本（有事故）${posTest}，负样本（无事故）${negTest}`);
 
       // 数据预处理
-      const { features: trainFeatures, targets: trainTargets } = this.preprocessData(trainData);
-      const { features: testFeatures, targets: testTargets } = this.preprocessData(testData);
+      const { features: trainFeatures, targets: trainTargets } = this.preprocessData(trainData, true);
+      const { features: testFeatures, targets: testTargets } = this.preprocessData(testData, false);
 
       // 训练模型（带EarlyStopping、ReduceLROnPlateau、最佳模型保存）
       await this.trainModel(trainFeatures, trainTargets, testFeatures, testTargets);
@@ -377,6 +381,56 @@ class TrafficAccidentPredictor {
   // 检查模型是否已加载
   isModelLoaded() {
     return this.model !== null;
+  }
+
+  // 获取特征的默认值
+  getDefaultValue(feature) {
+    const defaults = {
+      // 交通控制设备 - 使用最常见的"NO CONTROLS"
+      traffic_control_device: 2, // "NO CONTROLS"
+      
+      // 天气条件 - 使用最常见的"CLEAR"
+      weather_condition: 0, // "CLEAR"
+      
+      // 照明条件 - 使用最常见的"DAYLIGHT"
+      lighting_condition: 0, // "DAYLIGHT"
+      
+      // 道路类型 - 使用最常见的"NOT DIVIDED"
+      trafficway_type: 0, // "NOT DIVIDED"
+      
+      // 道路线形 - 使用最常见的"STRAIGHT AND LEVEL"
+      alignment: 0, // "STRAIGHT AND LEVEL"
+      
+      // 路面状况 - 使用最常见的"DRY"
+      roadway_surface_cond: 0, // "DRY"
+      
+      // 道路缺陷 - 使用最常见的"NO DEFECTS"
+      road_defect: 0, // "NO DEFECTS"
+      
+      // 是否与交叉口相关 - 使用最常见的"N"
+      intersection_related_i: 1, // "N"
+      
+      // 数值特征的默认值
+      crash_hour: 12, // 中午12点
+      crash_day_of_week: 1, // 周一
+      crash_month: 6, // 6月
+      
+      // 日期特征 - 使用当前日期
+      crash_date: new Date()
+    };
+    
+    return defaults[feature] !== undefined ? defaults[feature] : 0;
+  }
+
+  // 处理缺失值
+  handleMissingValue(feature, value) {
+    // 检查是否为缺失值
+    if (value === null || value === undefined || value === '' || 
+        (typeof value === 'string' && value.toLowerCase() === 'unknown') ||
+        (typeof value === 'string' && value.toLowerCase() === 'not reported')) {
+      return this.getDefaultValue(feature);
+    }
+    return value;
   }
 }
 

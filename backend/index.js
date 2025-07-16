@@ -9,6 +9,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+
+const authRouter = require('./routes/auth') // 上面新写的路由文件名为 auth.js
+app.use('/api/auth', authRouter)
+
 // ✅ 注册 /user 路由模块
 const userRouter = require('./routes/user')
 app.use('/api/user', userRouter)

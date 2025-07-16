@@ -87,13 +87,7 @@ node spark-ws-client.js  # 或 node testclient.js
 ### 训练模型
 ```bash
 cd backend/model
-python model.py  # 或 python trainModel.py
-```
-
-### 测试模型
-```bash
-cd backend/model
-python model.py  # 或使用 testAPI.js 进行接口测试
+node model/trainModel.js --db 2000 # 或 python trainModel.py
 ```
 
 ## 其他说明

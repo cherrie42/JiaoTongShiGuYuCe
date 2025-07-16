@@ -15,9 +15,11 @@
         active-text-color="#409EFF"
         class="menu"
       >
-        <el-menu-item index="/home/data">
+        <!-- 只有 admin 显示数据管理 -->
+        <el-menu-item v-if="role === 'admin'" index="/home/data">
           <el-icon><DataLine /></el-icon><span>数据管理</span>
         </el-menu-item>
+
         <el-menu-item index="/home/route-planning">
           <el-icon><Location /></el-icon><span>路线规划</span>
         </el-menu-item>
@@ -50,8 +52,14 @@
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item @click="goToUserManagement">用户管理</el-dropdown-item>
-                <el-dropdown-item divided @click="logout">退出登录</el-dropdown-item>
+                <!-- 只有管理员显示“用户管理” -->
+                <el-dropdown-item
+                  v-if="role === 'admin'"
+                  @click="goToUserManagement"
+                >
+                  用户管理
+                </el-dropdown-item>
+                <el-dropdown-item @click="logout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -66,7 +74,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Fold, Expand, DataLine, TrendCharts, PieChart, Location, User, ChatDotRound } from '@element-plus/icons-vue'
 
@@ -74,9 +82,21 @@ const isCollapse = ref(false)
 const toggleCollapse = () => (isCollapse.value = !isCollapse.value)
 const router = useRouter()
 const route = useRoute()
+
+const role = ref('user')  // 默认普通用户
+
+onMounted(() => {
+  role.value = localStorage.getItem('role') || 'user'
+})
+
 const goToUserManagement = () => router.push('/home/user-management')
-const logout = () => router.push('/login')
+const logout = () => {
+  localStorage.clear()
+  router.push('/login')
+}
 </script>
+
+
 
 <style lang="scss" scoped>
 .app-container {
