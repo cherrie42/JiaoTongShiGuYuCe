@@ -173,7 +173,7 @@ function roundCoord(val) {
   return Math.round(val * 1000) / 1000;
 }
 
-class WeatherService {
+class CorePredictionService {
   constructor() {
     // 高德API密钥池 - 请在此处填入你的多个API密钥
     this.apiKeys = [
@@ -505,13 +505,13 @@ class WeatherService {
    * @returns {string} 风险描述
    */
   generateRiskDescription(risk) {
-    if (risk > 0.9) {
+    if (risk > 0.4) {
       return '极高风险路段 - 急转弯 + 恶劣天气 + 路况极差';
-    } else if (risk > 0.8) {
+    } else if (risk > 0.3) {
       return '高风险路段 - 急转弯 + 路况不佳 + 视线不良';
-    } else if (risk > 0.7) {
+    } else if (risk > 0.25) {
       return '中高风险路段 - 弯道较多 + 路面湿滑';
-    } else if (risk > 0.6) {
+    } else if (risk > 0.2) {
       return '中等风险路段 - 车流量较大 + 路况一般';
     } else {
       return '低风险路段 - 路况良好 + 视线清晰';
@@ -524,13 +524,13 @@ class WeatherService {
    * @returns {string} 建议
    */
   generateRiskSuggestion(risk) {
-    if (risk > 0.9) {
+    if (risk > 0.4) {
       return '建议绕行或选择其他路线，必须通行时请极度谨慎';
-    } else if (risk > 0.8) {
+    } else if (risk > 0.3) {
       return '建议减速慢行，保持安全车距，注意观察路况';
-    } else if (risk > 0.7) {
+    } else if (risk > 0.25) {
       return '建议适当减速，注意路面湿滑情况';
-    } else if (risk > 0.6) {
+    } else if (risk > 0.2) {
       return '建议保持正常车速，注意车流变化';
     } else {
       return '路况良好，可正常通行';
@@ -599,120 +599,19 @@ class WeatherService {
 
   /**
    * 计算路线风险等级
-   * @param {Array} cities - 城市天气信息数组
+   * @param {number} avgRisk - 路线平均风险值
    * @returns {string} 风险等级 (低风险/中风险/高风险)
    */
-  calculateRouteRiskLevel(cities) {
-    if (!cities || cities.length === 0) {
+  calculateRouteRiskLevel(avgRisk) {
+    if (typeof avgRisk !== 'number' || isNaN(avgRisk)) {
       return '低风险';
     }
-
-    let riskScore = 0;
-    let cityCount = cities.length;
-
-    cities.forEach(city => {
-      // 天气风险评分
-      const weatherRisk = this.getWeatherRiskScore(city.weather);
-
-      // 温度风险评分
-      const tempRisk = this.getTemperatureRiskScore(city.temperature);
-
-      // 湿度风险评分
-      const humidityRisk = this.getHumidityRiskScore(city.humidity);
-
-      // 风速风险评分
-      const windRisk = this.getWindRiskScore(city.windSpeed);
-
-      // 累计风险分数
-      riskScore += weatherRisk + tempRisk + humidityRisk + windRisk;
-    });
-
-    // 计算平均风险分数
-    const avgRiskScore = riskScore / cityCount;
-
-    // 根据平均风险分数确定风险等级
-    if (avgRiskScore >= 7) {
+    if (avgRisk > 0.3) {
       return '高风险';
-    } else if (avgRiskScore >= 4) {
+    } else if (avgRisk > 0.2) {
       return '中风险';
     } else {
       return '低风险';
-    }
-  }
-
-  /**
-   * 获取天气风险评分
-   * @param {string} weather - 天气描述
-   * @returns {number} 风险评分
-   */
-  getWeatherRiskScore(weather) {
-    const weatherRiskMap = {
-      '晴': 1,
-      '多云': 1,
-      '阴': 2,
-      '小雨': 3,
-      '中雨': 4,
-      '大雨': 6,
-      '暴雨': 8,
-      '雷阵雨': 7,
-      '雪': 5,
-      '雾': 4,
-      '霾': 3
-    };
-
-    for (const [key, value] of Object.entries(weatherRiskMap)) {
-      if (weather.includes(key)) {
-        return value;
-      }
-    }
-
-    return 2; // 默认中等风险
-  }
-
-  /**
-   * 获取温度风险评分
-   * @param {number} temperature - 温度
-   * @returns {number} 风险评分
-   */
-  getTemperatureRiskScore(temperature) {
-    if (temperature < -10 || temperature > 40) {
-      return 3; // 极低或极高温度
-    } else if (temperature < 0 || temperature > 35) {
-      return 2; // 较低或较高温度
-    } else {
-      return 1; // 适宜温度
-    }
-  }
-
-  /**
-   * 获取湿度风险评分
-   * @param {number} humidity - 湿度
-   * @returns {number} 风险评分
-   */
-  getHumidityRiskScore(humidity) {
-    if (humidity > 90) {
-      return 3; // 极高湿度
-    } else if (humidity > 80) {
-      return 2; // 高湿度
-    } else if (humidity < 30) {
-      return 2; // 低湿度
-    } else {
-      return 1; // 适宜湿度
-    }
-  }
-
-  /**
-   * 获取风速风险评分
-   * @param {number} windSpeed - 风速等级
-   * @returns {number} 风险评分
-   */
-  getWindRiskScore(windSpeed) {
-    if (windSpeed >= 5) {
-      return 3; // 强风
-    } else if (windSpeed >= 3) {
-      return 2; // 中风
-    } else {
-      return 1; // 微风
     }
   }
 
@@ -770,11 +669,15 @@ class WeatherService {
       // 3. 调用本地事故预测API
       const predictionResponse = await axios.post('http://localhost:3001/api/predict', featureData);
       const probability = predictionResponse.data.probability;
+      // 兼容新结构
+      const accident_prob = probability.accident_prob;
+      const crash_type = probability.crash_type;
       return {
         success: true,
         adcode,
         time: dateObj.toISOString(),
-        probability,
+        probability: accident_prob,
+        crashType: crash_type,
         features: featureData
       };
     } catch (error) {
@@ -1020,13 +923,14 @@ class WeatherService {
         riskPromise = (async () => {
           const riskRes = await this.predictAccidentRiskByAdcode(adcode, departTime, weatherInfos[index], { trafficway_type, traffic_control_device, alignment });
           let risk = riskRes.success ? riskRes.probability : null;
-          risk=this.adjustRiskByWeather(risk, weatherInfos[index]);
-          risk=risk*(0.95+Math.random()*0.1);
-          return risk;
+          let crashType = riskRes.success ? riskRes.crashType : null;
+          risk = this.adjustRiskByWeather(risk, weatherInfos[index]);
+          risk = risk * (0.75 + Math.random() * 1);
+          return { risk, crashType };
         })();
         this.nodeRiskCache.set(cacheKey, riskPromise);
       }
-      const risk = await riskPromise;
+      const { risk, crashType } = await riskPromise;
       return {
         adcode: node.adcode,
         lat: node.lat,
@@ -1034,6 +938,7 @@ class WeatherService {
         weatherInfo: weatherInfos[index],
         cityInfo: placeInfos[index],
         risk,
+        crashType,
         location: `${node.lng},${node.lat}`,
         roadType: node.roadType,
         hasSignal: node.hasSignal,
@@ -1091,18 +996,18 @@ class WeatherService {
         let highRiskPoints = [];
 
         processedNodes.forEach((node, nodeIndex) => {
-          const { adcode, lat, lng, weatherInfo, cityInfo, risk } = node;
+          const { adcode, lat, lng, weatherInfo, cityInfo, risk, crashType } = node;
 
           maxRisk = Math.max(maxRisk, risk);
           riskSum += risk;
 
           // route-risk 节点
-          routePoints.push({ adcode, lng, lat, risk });
+          routePoints.push({ adcode, lng, lat, risk, crashType });
 
           // 高风险点
-          if (risk >= 0.7) {
+          if (risk >= 0.35) {
             highRiskPoints.push({
-              adcode, lng, lat, risk,
+              adcode, lng, lat, risk, crashType,
               description: this.generateRiskDescription(risk),
               suggestion: this.generateRiskSuggestion(risk)
             });
@@ -1118,6 +1023,7 @@ class WeatherService {
             windSpeed: weatherInfo.windSpeed,
             lat,
             lng,
+            crashType,
             weatherError: weatherInfo.weatherError,
             cityError: cityInfo.cityError
           });
@@ -1126,7 +1032,7 @@ class WeatherService {
         // 计算平均风险
         const avgRisk = routePoints.length > 0 ? (riskSum / routePoints.length) : 0;
         // 路线风险等级
-        const riskLevel = this.calculateRouteRiskLevel(cities);
+        const riskLevel = this.calculateRouteRiskLevel(avgRisk);
         // 路线 summary
         const summary = {
           start: cities[0]?.name || '',
@@ -1172,4 +1078,4 @@ class WeatherService {
 
 }
 
-module.exports = WeatherService; 
+module.exports = CorePredictionService; 
