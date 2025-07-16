@@ -599,120 +599,19 @@ class CorePredictionService {
 
   /**
    * 计算路线风险等级
-   * @param {Array} cities - 城市天气信息数组
+   * @param {number} avgRisk - 路线平均风险值
    * @returns {string} 风险等级 (低风险/中风险/高风险)
    */
-  calculateRouteRiskLevel(cities) {
-    if (!cities || cities.length === 0) {
+  calculateRouteRiskLevel(avgRisk) {
+    if (typeof avgRisk !== 'number' || isNaN(avgRisk)) {
       return '低风险';
     }
-
-    let riskScore = 0;
-    let cityCount = cities.length;
-
-    cities.forEach(city => {
-      // 天气风险评分
-      const weatherRisk = this.getWeatherRiskScore(city.weather);
-
-      // 温度风险评分
-      const tempRisk = this.getTemperatureRiskScore(city.temperature);
-
-      // 湿度风险评分
-      const humidityRisk = this.getHumidityRiskScore(city.humidity);
-
-      // 风速风险评分
-      const windRisk = this.getWindRiskScore(city.windSpeed);
-
-      // 累计风险分数
-      riskScore += weatherRisk + tempRisk + humidityRisk + windRisk;
-    });
-
-    // 计算平均风险分数
-    const avgRiskScore = riskScore / cityCount;
-
-    // 根据平均风险分数确定风险等级
-    if (avgRiskScore >= 7) {
+    if (avgRisk > 0.3) {
       return '高风险';
-    } else if (avgRiskScore >= 4) {
+    } else if (avgRisk > 0.2) {
       return '中风险';
     } else {
       return '低风险';
-    }
-  }
-
-  /**
-   * 获取天气风险评分
-   * @param {string} weather - 天气描述
-   * @returns {number} 风险评分
-   */
-  getWeatherRiskScore(weather) {
-    const weatherRiskMap = {
-      '晴': 1,
-      '多云': 1,
-      '阴': 2,
-      '小雨': 3,
-      '中雨': 4,
-      '大雨': 6,
-      '暴雨': 8,
-      '雷阵雨': 7,
-      '雪': 5,
-      '雾': 4,
-      '霾': 3
-    };
-
-    for (const [key, value] of Object.entries(weatherRiskMap)) {
-      if (weather.includes(key)) {
-        return value;
-      }
-    }
-
-    return 2; // 默认中等风险
-  }
-
-  /**
-   * 获取温度风险评分
-   * @param {number} temperature - 温度
-   * @returns {number} 风险评分
-   */
-  getTemperatureRiskScore(temperature) {
-    if (temperature < -10 || temperature > 40) {
-      return 3; // 极低或极高温度
-    } else if (temperature < 0 || temperature > 35) {
-      return 2; // 较低或较高温度
-    } else {
-      return 1; // 适宜温度
-    }
-  }
-
-  /**
-   * 获取湿度风险评分
-   * @param {number} humidity - 湿度
-   * @returns {number} 风险评分
-   */
-  getHumidityRiskScore(humidity) {
-    if (humidity > 90) {
-      return 3; // 极高湿度
-    } else if (humidity > 80) {
-      return 2; // 高湿度
-    } else if (humidity < 30) {
-      return 2; // 低湿度
-    } else {
-      return 1; // 适宜湿度
-    }
-  }
-
-  /**
-   * 获取风速风险评分
-   * @param {number} windSpeed - 风速等级
-   * @returns {number} 风险评分
-   */
-  getWindRiskScore(windSpeed) {
-    if (windSpeed >= 5) {
-      return 3; // 强风
-    } else if (windSpeed >= 3) {
-      return 2; // 中风
-    } else {
-      return 1; // 微风
     }
   }
 
@@ -1026,7 +925,7 @@ class CorePredictionService {
           let risk = riskRes.success ? riskRes.probability : null;
           let crashType = riskRes.success ? riskRes.crashType : null;
           risk = this.adjustRiskByWeather(risk, weatherInfos[index]);
-          risk = risk * (0.75 + Math.random() * 2);
+          risk = risk * (0.75 + Math.random() * 1);
           return { risk, crashType };
         })();
         this.nodeRiskCache.set(cacheKey, riskPromise);
@@ -1133,7 +1032,7 @@ class CorePredictionService {
         // 计算平均风险
         const avgRisk = routePoints.length > 0 ? (riskSum / routePoints.length) : 0;
         // 路线风险等级
-        const riskLevel = this.calculateRouteRiskLevel(cities);
+        const riskLevel = this.calculateRouteRiskLevel(avgRisk);
         // 路线 summary
         const summary = {
           start: cities[0]?.name || '',
