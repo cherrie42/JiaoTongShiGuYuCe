@@ -154,7 +154,7 @@ app.post('/api/predict', async (req, res) => {
         accident_prob: result.accident_prob,
         crash_type: result.crash_type 
       }, 
-      risk_level: result.accident_prob < 0.1 ? '低风险' : result.accident_prob < 0.3 ? '中风险' : '高风险',
+      risk_level: result.accident_prob < 0.25 ? '低风险' : result.accident_prob < 0.35? '中风险' : '高风险',
       message: '预测完成'
     });
 
