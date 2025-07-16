@@ -232,12 +232,25 @@ const submitForm = () => {
     loading.value = true
     try {
       if (mode.value === 'login') {
-        const res = await login({ email: form.value.email, password: form.value.password })
-        ElMessage.success('登录成功！')
-        localStorage.setItem('token', res.token)
-        localStorage.setItem('role', res.role)
-        router.push('/home')
-      } else {
+ const res = await login({ email: form.value.email, password: form.value.password })
+
+if (res.token && res.user) {
+  const { token, user } = res
+
+  // 存储 token 和 role
+  localStorage.setItem('token', token)
+  localStorage.setItem('role', user.role)
+  localStorage.setItem('user', JSON.stringify(user))  // 建议也存完整用户信息
+
+  ElMessage.success('登录成功！')
+  router.push('/home')
+} else {
+  ElMessage.error('登录失败，接口返回结构不符合预期')
+  console.warn('登录失败，返回内容：', res)
+}
+
+}
+ else {
         await register({
           username: form.value.username,
           email: form.value.email,
