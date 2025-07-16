@@ -193,28 +193,69 @@ function drawAllRoutesOnMap(selectedIdx = 0) {
   const plannedRoutes = getPlannedRoutesFromStorage()
   if (!plannedRoutes.length) return
   const icons = getCustomIcons()
-  // 1. 绘制所有路线
-  plannedRoutes.forEach((route, idx) => {
+
+  // 只绘制当前选中路线
+  const routeArr = plannedRoutes[selectedIdx]
+  if (!routeArr || !routeArr.length) return
+
+  // 获取风险值数组（与趋势图一致）
+  let routeRiskArr = []
+  if (routeData.value && routeData.value.routeRisks && routeData.value.routeRisks[selectedIdx]) {
+    routeRiskArr = routeData.value.routeRisks[selectedIdx].route || []
+  }
+
+  // 获取关键节点索引
+  let waypointIdxArr = []
+  try {
+    const allWaypointIdx = JSON.parse(localStorage.getItem('waypointIdx') || '[]')
+    waypointIdxArr = allWaypointIdx[selectedIdx] || []
+  } catch (e) {
+    waypointIdxArr = []
+  }
+  // 加入起点终点索引，去重排序
+  const idxSet = new Set([0, ...waypointIdxArr, routeArr.length - 1])
+  const segIdxArr = Array.from(idxSet).sort((a, b) => a - b)
+
+  // 分段绘制
+  function getRiskVal(p) {
+    if (!p) return 0
+    if (typeof p.risk === 'number') return p.risk
+    if (typeof p.risk === 'object' && p.risk && typeof p.risk.risk === 'number') return p.risk.risk
+    return 0
+  }
+  for (let i = 0; i < segIdxArr.length - 1; i++) {
+    const startIdx = segIdxArr[i]
+    const endIdx = segIdxArr[i + 1]
+    const segPath = routeArr.slice(startIdx, endIdx + 1)
+    // 获取头尾风险值，使用分段索引 i
+    const risk1 = getRiskVal(routeRiskArr[i])
+    const risk2 = getRiskVal(routeRiskArr[i + 1])
+    const avgRisk = (risk1 + risk2) / 2
+    console.log(`分段 ${i + 1}: [${startIdx}-${endIdx}], risk1=${risk1}, risk2=${risk2}, avgRisk=${avgRisk.toFixed(3)}`)
+    let color = '#FFD600' // yellow
+    if (avgRisk > 0.3) color = '#F56C6C' // red
+    else if (avgRisk > 0.2) color = '#FF9800' // orange
+    // 画分段
     const polyline = new window.AMap.Polyline({
-      path: route,
-      strokeColor: idx === selectedIdx ? '#FF0000' : '#409EFF',
-      strokeWeight: idx === selectedIdx ? 7 : 4,
+      path: segPath,
+      strokeColor: color,
+      strokeWeight: 7,
       isOutline: true,
       outlineColor: '#ffeeff',
       borderWeight: 2,
       lineJoin: 'round',
-      zIndex: idx === selectedIdx ? 100 : 10
+      zIndex: 100
     })
     polyline.setMap(map)
     polylines.push(polyline)
-  })
-  // 2. 标记当前选中路线的关键节点
-  const plannedRoutesArr = plannedRoutes[selectedIdx]
-  if (plannedRoutesArr && plannedRoutesArr.length > 0) {
+  }
+
+  // 标记当前选中路线的关键节点
+  if (routeArr && routeArr.length > 0) {
     // 起点
     if (icons.start !== noneIcon) {
       markers.push(new window.AMap.Marker({
-        position: plannedRoutesArr[0],
+        position: routeArr[0],
         map,
         title: '起点',
         icon: icons.start,
@@ -224,7 +265,7 @@ function drawAllRoutesOnMap(selectedIdx = 0) {
     // 终点
     if (icons.end !== noneIcon) {
       markers.push(new window.AMap.Marker({
-        position: plannedRoutesArr[plannedRoutesArr.length - 1],
+        position: routeArr[routeArr.length - 1],
         map,
         title: '终点',
         icon: icons.end,
@@ -232,12 +273,12 @@ function drawAllRoutesOnMap(selectedIdx = 0) {
       }))
     }
     // 5个均匀分布的路径点
-    const step = Math.floor(plannedRoutesArr.length / 6)
+    const step = Math.floor(routeArr.length / 6)
     if (icons.waypoint !== noneIcon) {
       for (let i = 1; i <= 5; i++) {
-        const idx = Math.min(i * step, plannedRoutesArr.length - 2)
+        const idx = Math.min(i * step, routeArr.length - 2)
         markers.push(new window.AMap.Marker({
-          position: plannedRoutesArr[idx],
+          position: routeArr[idx],
           map,
           title: `路径点${i}`,
           icon: icons.waypoint,

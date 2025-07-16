@@ -1005,7 +1005,7 @@ class CorePredictionService {
           routePoints.push({ adcode, lng, lat, risk, crashType });
 
           // 高风险点
-          if (risk >= 0.35) {
+          if (risk >= 0.31) {
             highRiskPoints.push({
               adcode, lng, lat, risk, crashType,
               description: this.generateRiskDescription(risk),

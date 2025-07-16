@@ -263,6 +263,7 @@ const sendRouteDataToBackend = async (origin, destination, departTime, vehicleTy
         // 修正：统一 neighbor 为 {lat, lng} 对象格式
         waypoints[i].neighbors = [...prevNeighbors, ...nextNeighbors].map(p => ({ lat: p.lat, lng: p.lng }));
       }
+      route.waypoints = waypoints // <--- 确保每个 route 挂载 waypoints
       paths.push({
         origin: originInfo,
         destination: destInfo,
@@ -274,6 +275,8 @@ const sendRouteDataToBackend = async (origin, destination, departTime, vehicleTy
     console.log('发送路线数据:', paths);
     const response = await sendRouteData({ paths })
     ElMessage.success('路线数据已发送到后端')
+    // 采样完所有路线的 waypoints 后，写入 localStorage
+    storeWaypointIdxsForAllRoutes(routeResults)
   } catch (error) {
     console.error('请求失败:', error)
     ElMessage.error('数据发送失败')
@@ -301,7 +304,6 @@ const getLocationCoordinates = (address) => {
 const drawRoutes = (routeList) => {
   clearMap()
   const allRouteCoords = []  // 存储所有路线的经纬度信息
-
   routeList.forEach((route, index) => {
     const path = route.steps.flatMap(step => step.path)
     const polyline = new AMap.Polyline({
@@ -313,11 +315,38 @@ const drawRoutes = (routeList) => {
     routePolylines.push(polyline)
     allRouteCoords.push(path.map(p => [p.lng, p.lat]))  // 经纬度数组
   })
-
   // 保存到 localStorage 以便数据分析页使用
   localStorage.setItem('plannedRoutes', JSON.stringify(allRouteCoords))
-
   if (routePolylines.length) map.setFitView(routePolylines)
+}
+
+// 在采样关键节点（waypoints）后，计算其在路径点中的索引并存储
+function storeWaypointIdxsForAllRoutes(routeResults) {
+  const allWaypointIdxs = []
+  routeResults.forEach((route, idx) => {
+    const path = route.steps.flatMap(step => step.path)
+    // 采样关键节点（如 generateWaypoints）
+    // 这里假设你有 waypoints 变量（如 sendRouteDataToBackend 里）
+    if (route.waypoints && Array.isArray(route.waypoints)) {
+      const idxs = route.waypoints.map(pt => {
+        let minDist = Infinity, minIdx = -1
+        for (let i = 0; i < path.length; i++) {
+          const p = path[i]
+          if (!p || typeof p.lat !== 'number' || typeof p.lng !== 'number') continue
+          const d = Math.abs(p.lat - pt.lat) + Math.abs(p.lng - pt.lng)
+          if (d < minDist) {
+            minDist = d
+            minIdx = i
+          }
+        }
+        return minIdx
+      })
+      allWaypointIdxs[idx] = idxs
+    } else {
+      allWaypointIdxs[idx] = []
+    }
+  })
+  localStorage.setItem('waypointIdx', JSON.stringify(allWaypointIdxs))
 }
 
 
