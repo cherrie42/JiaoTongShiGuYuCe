@@ -8,7 +8,7 @@ class KeyPool {
   constructor(keys, minInterval) {
     this.keys = keys.map(key => ({ key, lastCall: 0 }));
     this.minInterval = minInterval;
-    console.log(`初始化API密钥池，共 ${keys.length} 个密钥`);
+    // console.log(`初始化API密钥池，共 ${keys.length} 个密钥`);
   }
 
   /**
@@ -21,7 +21,7 @@ class KeyPool {
         const keyInfo = this.keys[i];
         if (now - keyInfo.lastCall >= this.minInterval) {
           keyInfo.lastCall = now;
-          console.log(`[KeyPool] 分配key: ${keyInfo.key}`);
+          // console.log(`[KeyPool] 分配key: ${keyInfo.key}`);
           return keyInfo.key;
         }
       }
@@ -37,7 +37,7 @@ class KeyPool {
     const keyInfo = this.keys.find(k => k.key === key);
     if (keyInfo) {
       keyInfo.lastCall = Date.now() + 5000; // 限流时禁用5秒
-      console.log(`密钥被限流，禁用5秒: ${key.substring(0, 8)}...`);
+      // console.log(`密钥被限流，禁用5秒: ${key.substring(0, 8)}...`);
     }
   }
 }
@@ -77,12 +77,14 @@ const AMAP_ROADLEVEL_TO_MODEL = {
 async function getRoadInfoFromAmap(lat, lng, amapKey, weatherServiceInstance) {
   const start = Date.now();
   const timeoutMs = 3000;
-  console.log(`[高德道路] 使用key: ${amapKey} 查询 lat:${lat}, lng:${lng}`);
+  // console.log(`[高德道路] 使用key: ${amapKey} 查询 lat:${lat}, lng:${lng}`);
   function timeoutPromise() {
     return new Promise((resolve) => {
       setTimeout(() => {
         const duration = Date.now() - start;
-        console.warn(`【高德道路超时保护】lat:${lat}, lng:${lng}, duration:${duration}ms`);
+        if (process.env.DEBUG) {
+          console.warn(`【高德道路超时保护】lat:${lat}, lng:${lng}, duration:${duration}ms`);
+        }
         resolve({ roadType: null, hasSignal: false });
       }, timeoutMs);
     });
@@ -108,7 +110,9 @@ async function getRoadInfoFromAmap(lat, lng, amapKey, weatherServiceInstance) {
           }
         }
         const duration = Date.now() - start;
-        console.log(`【高德道路查询用时】lat:${lat}, lng:${lng}, roadType:${roadType}, hasSignal:${hasSignal}, duration:${duration}ms`);
+        if (process.env.DEBUG) {
+          console.log(`【高德道路查询用时】lat:${lat}, lng:${lng}, roadType:${roadType}, hasSignal:${hasSignal}, duration:${duration}ms`);
+        }
         return { roadType, hasSignal };
       } catch (e) {
         return { roadType: null, hasSignal: false };
@@ -130,7 +134,9 @@ async function getRoadInfoFromOSM(lat, lng) {
     return new Promise((resolve) => {
       setTimeout(() => {
         const duration = Date.now() - start;
-        console.warn(`【OSM超时保护】lat:${lat}, lng:${lng}, duration:${duration}ms`);
+        if (process.env.DEBUG) {
+          console.warn(`【OSM超时保护】lat:${lat}, lng:${lng}, duration:${duration}ms`);
+        }
         resolve({ roadType: null, hasSignal: false });
       }, timeoutMs);
     });
@@ -153,7 +159,9 @@ async function getRoadInfoFromOSM(lat, lng) {
         hasSignal = data.elements && data.elements.length > 0;
       } catch (e) { /* 网络异常忽略 */ }
       const duration = Date.now() - start;
-      console.log(`【OSM查询用时】lat:${lat}, lng:${lng}, roadType:${roadType}, hasSignal:${hasSignal}, duration:${duration}ms`);
+      if (process.env.DEBUG) {
+        console.log(`【OSM查询用时】lat:${lat}, lng:${lng}, roadType:${roadType}, hasSignal:${hasSignal}, duration:${duration}ms`);
+      }
       return { roadType, hasSignal };
     })(),
     timeoutPromise()
@@ -241,7 +249,9 @@ class WeatherService {
    * 处理限流情况
    */
   async handleRateLimit(usedKey) {
-    console.log('检测到API限流，标记密钥并继续...');
+    if (process.env.DEBUG) {
+      console.log('检测到API限流，标记密钥并继续...');
+    }
     this.markKeyAsRateLimited(usedKey);
     // 不需要额外等待，KeyPool会自动选择其他可用密钥
   }
@@ -397,7 +407,7 @@ class WeatherService {
         }
       } catch (error) {
         const errorMsg = `天气API请求异常 - ${error.message}`;
-        console.error(errorMsg);
+        // console.error(errorMsg);
 
         // 如果是QPS超限，处理限流
         if (error.response && this.isRateLimited(error.response)) {
@@ -442,7 +452,9 @@ class WeatherService {
           data.regeocode.addressComponent
         ) {
           const ac = data.regeocode.addressComponent;
-          console.log('[地名addressComponent]', ac);
+          if (process.env.DEBUG) {
+            console.log('[地名addressComponent]', ac);
+          }
           // 智能降级拼接
           let placeName = '';
           const street = (ac.streetNumber && ac.streetNumber.street) || '';
@@ -473,25 +485,17 @@ class WeatherService {
             placeError: error
           };
         }
-      } catch (error) {
-        const errorMsg = `逆地理编码API请求异常 - ${error.message}`;
-        if (error.response && this.isRateLimited(error.response)) {
-          await this.handleRateLimit(apiKey);
-          retries++;
-          continue;
+      } catch (e) {
+        // console.error('逆地理编码API请求失败:', e.message);
+        if (process.env.DEBUG) {
+          console.error('逆地理编码API请求失败:', e.message);
         }
         retries++;
-        if (retries >= this.maxRetries) {
-          return {
-            name: '未知',
-            placeError: errorMsg
-          };
-        }
       }
     }
     return {
       name: '未知',
-      placeError: '重试次数超限'
+      placeError: '逆地理编码API多次请求失败'
     };
   }
 
@@ -748,18 +752,21 @@ class WeatherService {
       // 字段映射
       const featureData = {
         crash_date: dateObj.toISOString().slice(0, 10), // 日期 yyyy-mm-dd
-        traffic_control_device: roadInfo.traffic_control_device || 'Traffic Signal', // 默认值
+        traffic_control_device: roadInfo.traffic_control_device || 'NO CONTROLS',
         weather_condition: this.mapWeatherToCondition(weather.weather),
         lighting_condition: this.mapLightingCondition(dateObj.getHours(), weather.weather),
-        trafficway_type: roadInfo.trafficway_type || 'Two-Way, Not Divided', // 默认值
-        alignment: 'Straight', // 默认值
+        trafficway_type: roadInfo.trafficway_type || 'NOT DIVIDED',
+        alignment: roadInfo.alignment || 'STRAIGHT AND LEVEL',
         roadway_surface_cond: this.mapRoadSurfaceCond(weather.weather),
-        road_defect: 'None', // 默认值
-        intersection_related_i: 'Non-Intersection', // 默认值
+        road_defect: 'NO DEFECTS', // 默认值
+        intersection_related_i: 'N', // 默认值
         crash_hour: dateObj.getHours(),
         crash_day_of_week: dateObj.getDay() === 0 ? 7 : dateObj.getDay(), // 周日为7
         crash_month: dateObj.getMonth() + 1
       };
+      if (process.env.DEBUG) {
+        console.log('【模型输入featureData】', featureData);
+      }
       // 3. 调用本地事故预测API
       const predictionResponse = await axios.post('http://localhost:3001/api/predict', featureData);
       const probability = predictionResponse.data.probability;
@@ -771,10 +778,13 @@ class WeatherService {
         features: featureData
       };
     } catch (error) {
-      console.error('事故概率预测失败:', error.message);
+      // console.error('事故概率预测失败:', error.message);
       if (error.response && error.response.data &&
         error.response.data.infocode === '10021') {
-        console.warn('检测到API限流，建议增加API密钥或调整调用频率');
+        // console.warn('检测到API限流，建议增加API密钥或调整调用频率');
+        if (process.env.DEBUG) {
+          console.warn('检测到API限流，建议增加API密钥或调整调用频率');
+        }
       }
       return {
         success: false,
@@ -783,49 +793,59 @@ class WeatherService {
     }
   }
 
-  /**
-   * 天气描述映射到模型字段
-   */
+  // 严格映射天气到模型支持的weather_condition
   mapWeatherToCondition(weather) {
-    if (!weather) return 'Clear';
-    if (weather.includes('雨')) return 'Rain';
-    if (weather.includes('雪')) return 'Snow';
-    if (weather.includes('雾') || weather.includes('霾')) return 'Fog';
-    if (weather.includes('阴')) return 'Cloudy';
-    if (weather.includes('晴')) return 'Clear';
-    return 'Clear';
+    if (!weather) return 'CLEAR';
+    if (weather.includes('雨')) return 'RAIN';
+    if (weather.includes('雪')) return 'SNOW';
+    if (weather.includes('雾') || weather.includes('霾')) return 'FOG/SMOKE/HAZE';
+    if (weather.includes('阴')) return 'CLOUDY/OVERCAST';
+    if (weather.includes('沙') || weather.includes('尘')) return 'BLOWING SAND, SOIL, DIRT';
+    if (weather.includes('冻雨')) return 'FREEZING RAIN/DRIZZLE';
+    if (weather.includes('冰雹')) return 'SLEET/HAIL';
+    if (weather.includes('风')) return 'SEVERE CROSS WIND GATE';
+    if (weather.includes('晴')) return 'CLEAR';
+    return 'OTHER';
   }
 
-  /**
-   * 根据小时和天气映射照明条件
-   */
+  // 严格映射照明条件到模型支持的lighting_condition
   mapLightingCondition(hour, weather) {
     // 夜晚
-    if (hour < 6 || hour >= 20) return 'Dark - Street Lights On';
+    if (hour < 6 || hour >= 20) {
+      // 大雾、暴雨、雪夜等极端天气夜间可视性更差
+      if (weather && (weather.includes('雾') || weather.includes('霾') || weather.includes('暴雨') || weather.includes('雪'))) {
+        return 'DARKNESS';
+      }
+      return 'DARKNESS, LIGHTED ROAD';
+    }
+    // 清晨
+    if (hour >= 6 && hour < 7) {
+      if (weather && (weather.includes('雾') || weather.includes('霾'))) return 'UNKNOWN';
+      return 'DAWN';
+    }
     // 白天
-    if (hour >= 6 && hour < 18) {
-      if (weather && (weather.includes('晴') || weather.includes('多云'))) return 'Daylight';
-      if (weather && weather.includes('阴')) return 'Daylight - Cloudy';
-      if (weather && (weather.includes('雨') || weather.includes('雪'))) return 'Daylight - Rain/Snow';
-      return 'Daylight';
+    if (hour >= 7 && hour < 18) {
+      if (weather && (weather.includes('雾') || weather.includes('霾'))) return 'UNKNOWN';
+      return 'DAYLIGHT';
     }
-    // 黄昏
+    // 傍晚
     if (hour >= 18 && hour < 20) {
-      if (weather && (weather.includes('晴') || weather.includes('多云'))) return 'Dusk';
-      if (weather && (weather.includes('阴') || weather.includes('雨') || weather.includes('雪'))) return 'Dusk - Cloudy/Rain/Snow';
-      return 'Dusk';
+      if (weather && (weather.includes('雾') || weather.includes('霾'))) return 'UNKNOWN';
+      return 'DUSK';
     }
-    return 'Daylight';
+    return 'UNKNOWN';
   }
 
   /**
    * 根据天气映射路面状况
    */
   mapRoadSurfaceCond(weather) {
-    if (!weather) return 'Dry';
-    if (weather.includes('雨')) return 'Wet';
-    if (weather.includes('雪')) return 'Snow/Slush';
-    return 'Dry';
+    if (!weather) return 'DRY';
+    if (weather.includes('雨')) return 'WET';
+    if (weather.includes('雪')) return 'SNOW OR SLUSH';
+    if (weather.includes('冰')) return 'ICE';
+    if (weather.includes('泥') || weather.includes('沙')) return 'SAND, MUD, DIRT';
+    return 'DRY';
   }
 
   // 风险值根据天气详细数值调整，偏离理想值越小减得越多
@@ -869,12 +889,17 @@ class WeatherService {
         // 优先使用区县adcode，如果没有则使用市级
         const newAdcode = addressComponent.adcode || addressComponent.citycode;
         if (newAdcode) {
-          console.log(`adcode降级成功: ${lat},${lng} -> ${newAdcode}`);
+          if (process.env.DEBUG) {
+            console.log(`adcode降级成功: ${lat},${lng} -> ${newAdcode}`);
+          }
           return newAdcode;
         }
       }
     } catch (error) {
-      console.warn(`adcode降级失败: ${lat},${lng}`, error.message);
+      // console.warn(`adcode降级失败: ${lat},${lng}`, error.message);
+      if (process.env.DEBUG) {
+        console.warn(`adcode降级失败: ${lat},${lng}`, error.message);
+      }
     }
     return null;
   }
@@ -886,6 +911,22 @@ class WeatherService {
    * @returns {Promise<Array>} 处理后的节点数组
    */
   async processNodesBatch(nodes, departTime) {
+    // 1. 计算每个节点的曲率（夹角）
+    function calcAngle(p1, p2, p3) {
+      const x1 = p1.lng, y1 = p1.lat;
+      const x2 = p2.lng, y2 = p2.lat;
+      const x3 = p3.lng, y3 = p3.lat;
+      const v1 = [x1 - x2, y1 - y2];
+      const v2 = [x3 - x2, y3 - y2];
+      const dot = v1[0]*v2[0] + v1[1]*v2[1];
+      const norm1 = Math.sqrt(v1[0]*v1[0] + v1[1]*v1[1]);
+      const norm2 = Math.sqrt(v2[0]*v2[0] + v2[1]*v2[1]);
+      if (norm1 === 0 || norm2 === 0) return 180;
+      let cosTheta = dot / (norm1 * norm2);
+      cosTheta = Math.max(-1, Math.min(1, cosTheta));
+      return Math.acos(cosTheta) * 180 / Math.PI;
+    }
+    // 2. 处理节点
     const processedNodes = [];
     const processedAdcodes = [];
     for (let i = 0; i < nodes.length; i++) {
@@ -916,9 +957,49 @@ class WeatherService {
     }
     for (let i = 0; i < processedAdcodes.length; i++) {
       const node = processedAdcodes[i];
-      const { _roadKey } = node;
-      const { roadType, hasSignal } = await this.roadInfoCache.get(_roadKey);
-      processedAdcodes[i] = { ...node, roadType, hasSignal };
+      // 计算曲率（夹角）并赋值alignment
+      let angle = null;
+      let alignment = 'STRAIGHT AND LEVEL';
+      if (node.neighbors && node.neighbors.length >= 2) {
+        const allAngles = [];
+        for (let j = 0; j < node.neighbors.length; j++) {
+          for (let k = j + 1; k < node.neighbors.length; k++) {
+            const a = calcAngle(node.neighbors[j], node, node.neighbors[k]);
+            allAngles.push(Number(a.toFixed(2)));
+          }
+        }
+        // 取中位数角度
+        const validAngles = allAngles.filter(x => typeof x === 'number' && !isNaN(x));
+        let medianAngle = null;
+        if (validAngles.length > 0) {
+          validAngles.sort((a, b) => a - b);
+          const mid = Math.floor(validAngles.length / 2);
+          medianAngle = validAngles.length % 2 === 0 ? (validAngles[mid - 1] + validAngles[mid]) / 2 : validAngles[mid];
+        }
+        angle = medianAngle;
+        // 输出所有夹角分布
+        if (process.env.DEBUG) {
+          console.log('【夹角分布】', {
+            lat: node.lat,
+            lng: node.lng,
+            angles: allAngles
+          });
+        }
+        // 降低阈值
+        if (angle !== null && angle < 30) alignment = 'CURVE, LEVEL';
+        else if (angle !== null && angle < 90) alignment = 'CURVE ON GRADE';
+        else alignment = 'STRAIGHT AND LEVEL';
+      }
+      // 输出曲率日志
+      if (process.env.DEBUG) {
+        console.log('【曲率日志】', {
+          lat: node.lat,
+          lng: node.lng,
+          curvature: angle,
+          alignment
+        });
+      }
+      processedAdcodes[i] = { ...node, curvature: angle, alignment };
     }
     // 批量获取天气和城市信息
     const adcodes = processedAdcodes.map(node => node.adcode);
@@ -927,35 +1008,20 @@ class WeatherService {
     const placeInfos = await Promise.all(placePromises);
     // 记忆化风险预测
     const riskPromises = processedAdcodes.map(async (node, index) => {
-      const { adcode, roadType, hasSignal, lat, lng } = node;
+      const { adcode, roadType, hasSignal, lat, lng, alignment } = node;
       const cacheKey = `${adcode}_${departTime}`;
       let riskPromise;
       let trafficway_type, traffic_control_device;
       if (this.nodeRiskCache.has(cacheKey)) {
         riskPromise = this.nodeRiskCache.get(cacheKey);
       } else {
-        trafficway_type = OSM_HIGHWAY_TO_MODEL[roadType] || 'Two-Way, Not Divided';
-        traffic_control_device = hasSignal ? 'Traffic Signal' : 'None';
+        trafficway_type = OSM_HIGHWAY_TO_MODEL[roadType] || 'NOT DIVIDED';
+        traffic_control_device = hasSignal ? 'TRAFFIC SIGNAL' : 'NO CONTROLS';
         riskPromise = (async () => {
-          const riskRes = await this.predictAccidentRiskByAdcode(adcode, departTime, weatherInfos[index], { trafficway_type, traffic_control_device });
+          const riskRes = await this.predictAccidentRiskByAdcode(adcode, departTime, weatherInfos[index], { trafficway_type, traffic_control_device, alignment });
           let risk = riskRes.success ? riskRes.probability : null;
           risk=this.adjustRiskByWeather(risk, weatherInfos[index]);
           risk=risk*(0.95+Math.random()*0.1);
-          const weatherInfo = weatherInfos[index];
-          console.log('【节点预测特征】', {
-            lat,
-            lng,
-            adcode,
-            roadType,
-            hasSignal,
-            trafficway_type,
-            traffic_control_device,
-            weather: weatherInfo?.weather,
-            temperature: weatherInfo?.temperature,
-            humidity: weatherInfo?.humidity,
-            windSpeed: weatherInfo?.windSpeed,
-            risk
-          });
           return risk;
         })();
         this.nodeRiskCache.set(cacheKey, riskPromise);
@@ -970,7 +1036,9 @@ class WeatherService {
         risk,
         location: `${node.lng},${node.lat}`,
         roadType: node.roadType,
-        hasSignal: node.hasSignal
+        hasSignal: node.hasSignal,
+        curvature: node.curvature,
+        alignment: node.alignment
       };
     });
     const results = await Promise.all(riskPromises);
@@ -993,7 +1061,9 @@ class WeatherService {
         return { success: false, error: '请求体格式错误，缺少 paths 数组' };
       }
 
-      console.log(`开始处理 ${paths.length} 条路线...`);
+      if (process.env.DEBUG) {
+        console.log(`开始处理 ${paths.length} 条路线...`);
+      }
 
       // 结果容器
       const routes = [];
@@ -1001,7 +1071,9 @@ class WeatherService {
 
       // 并行处理所有路线
       const routePromises = paths.map(async (pathObj, pathIndex) => {
-        console.log(`并行处理第 ${pathIndex + 1} 条路线...`);
+        if (process.env.DEBUG) {
+          console.log(`并行处理第 ${pathIndex + 1} 条路线...`);
+        }
 
         // 1. 整理所有节点（起点、途经点、终点）
         const nodes = [pathObj.origin, ...(pathObj.waypoints || []), pathObj.destination];
@@ -1064,7 +1136,9 @@ class WeatherService {
           suggestion: this.generateOverallSuggestion(avgRisk, maxRisk, vehicleType)
         };
 
-        console.log(`第 ${pathIndex + 1} 条路线处理完成，风险等级: ${riskLevel}`);
+        if (process.env.DEBUG) {
+          console.log(`第 ${pathIndex + 1} 条路线处理完成，风险等级: ${riskLevel}`);
+        }
 
         return {
           route: { riskLevel, cities },
@@ -1081,12 +1155,17 @@ class WeatherService {
         routeRisks[index] = result.routeRisk;
       });
 
-      console.log(`所有路线处理完成，共 ${routes.length} 条路线`);
+      if (process.env.DEBUG) {
+        console.log(`所有路线处理完成，共 ${routes.length} 条路线`);
+      }
       this.nodeRiskCache = new Map(); // 处理完后清空缓存
       return { success: true, routes, routeRisks };
     } catch (error) {
       this.nodeRiskCache = new Map(); // 出错也清空缓存
-      console.error('路线规划处理失败:', error);
+      // console.error('路线规划处理失败:', error);
+      if (process.env.DEBUG) {
+        console.error('路线规划处理失败:', error);
+      }
       return { success: false, error: error.message };
     }
   }
