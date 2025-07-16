@@ -222,6 +222,40 @@ class CorePredictionService {
     this.nodeRiskCache = new Map(); // 节点风险记忆化缓存
     this.roadInfoCache = new Map(); // 全局道路信息缓存
     this.regeoCache = new Map(); // 全局高德逆地理编码Promise级缓存
+    // 省份概率表（小数形式）
+    this.provinceProbMap = {
+      '北京市': 0.30,
+      '天津市': 0.46,
+      '河北省': 0.05,
+      '山西省': 0.23,
+      '内蒙古自治区': 0.15,
+      '辽宁省': 0.11,
+      '吉林省': 0.29,
+      '黑龙江省': 0.11,
+      '上海市': 0.05,
+      '江苏省': 0.12,
+      '浙江省': 0.16,
+      '安徽省': 0.14,
+      '福建省': 0.18,
+      '江西省': 0.09,
+      '山东省': 0.12,
+      '河南省': 0.24,
+      '湖北省': 0.52,
+      '湖南省': 0.18,
+      '广东省': 0.20,
+      '广西壮族自治区': 0.32,
+      '海南省': 0.25,
+      '重庆市': 0.13,
+      '四川省': 0.09,
+      '贵州省': 0.38,
+      '云南省': 0.14,
+      '西藏自治区': 0.14,
+      '陕西省': 0.11,
+      '甘肃省': 0.12,
+      '青海省': 0.25,
+      '宁夏回族自治区': 0.22,
+      '新疆维吾尔自治区': 0.18
+    };
   }
 
   /**
@@ -931,13 +965,17 @@ class CorePredictionService {
         this.nodeRiskCache.set(cacheKey, riskPromise);
       }
       const { risk, crashType } = await riskPromise;
+      // 省份加权
+      const provinceName = placeInfos[index]?.name?.match(/^[^省市区县]+[省市自治区回族自治区壮族自治区维吾尔自治区]?/)?.[0] || '';
+      const provinceProb = this.provinceProbMap[provinceName] || 0;
+      const weightedRisk = typeof risk === 'number' ? risk * (1 + provinceProb) : risk;
       return {
         adcode: node.adcode,
         lat: node.lat,
         lng: node.lng,
         weatherInfo: weatherInfos[index],
         cityInfo: placeInfos[index],
-        risk,
+        risk: weightedRisk,
         crashType,
         location: `${node.lng},${node.lat}`,
         roadType: node.roadType,

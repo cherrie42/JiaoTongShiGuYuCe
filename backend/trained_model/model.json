@@ -219,7 +219,7 @@
         "name": "crash_type",
         "class_name": "Dense",
         "config": {
-          "units": 18,
+          "units": 16,
           "activation": "softmax",
           "use_bias": true,
           "kernel_initializer": {
