@@ -35,6 +35,13 @@ class TrafficAccidentPredictor {
       'UNKNOWN': '未知类型',
       'TURNING': '转弯碰撞',
       'SIDESWIPE SAME DIRECTION': '同向侧擦碰撞',
+      'SIDESWIPE OPPOSITE DIRECTION': '反向侧擦碰撞',
+      'REAR TO SIDE': '追尾侧擦碰撞',
+      'REAR TO FRONT': '尾对前碰撞',
+      'OTHER NONCOLLISION': '其他非碰撞',
+      'REAR TO REAR': '尾对尾碰撞',
+      'TRAIN': '火车碰撞',
+      'OTHER': '其他类型'
     };
   }
 
