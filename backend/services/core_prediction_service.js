@@ -541,9 +541,9 @@ class CorePredictionService {
   generateRiskDescription(risk) {
     if (risk > 0.4) {
       return '极高风险路段 - 急转弯 + 恶劣天气 + 路况极差';
-    } else if (risk > 0.3) {
+    } else if (risk > 0.33) {
       return '高风险路段 - 急转弯 + 路况不佳 + 视线不良';
-    } else if (risk > 0.25) {
+    } else if (risk > 0.23) {
       return '中高风险路段 - 弯道较多 + 路面湿滑';
     } else if (risk > 0.2) {
       return '中等风险路段 - 车流量较大 + 路况一般';
@@ -583,7 +583,7 @@ class CorePredictionService {
 
     if (maxRisk > 0.4) {
       suggestion += '路线存在高风险路段，';
-    } else if (avgRisk > 0.) {
+    } else if (avgRisk > 0.33) {
       suggestion += '路线整体风险较高，';
     } else {
       suggestion += '路线整体风险较低，';
@@ -640,9 +640,9 @@ class CorePredictionService {
     if (typeof avgRisk !== 'number' || isNaN(avgRisk)) {
       return '低风险';
     }
-    if (avgRisk > 0.3) {
+    if (avgRisk > 0.33) {
       return '高风险';
-    } else if (avgRisk > 0.2) {
+    } else if (avgRisk > 0.23) {
       return '中风险';
     } else {
       return '低风险';
