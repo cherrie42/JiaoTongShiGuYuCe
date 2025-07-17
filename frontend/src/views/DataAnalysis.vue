@@ -226,7 +226,7 @@ function drawAllRoutesOnMap(selectedIdx = 0) {
   
   // 根据风险值计算颜色
   function getColorByRisk(risk) {
-    if (risk <= 0.2) return '#4AF50' // 绿色
+    if (risk <= 0.2) return '#4CAF50' // 绿色
     if (risk >= 0.4) return '#F44336' // 红色
     // 0.2渐变
     const ratio = (risk - 0.2) / (0.4 - 0.2)
@@ -272,24 +272,23 @@ function drawAllRoutesOnMap(selectedIdx = 0) {
     const startIdx = segIdxArr[i]
     const endIdx = segIdxArr[i + 1]
     const segPath = routeArr.slice(startIdx, endIdx + 1)
-    // 获取头尾风险值，使用分段索引 i
-    const risk1 = getRiskVal(routeRiskArr[i])
-    const risk2 = getRiskVal(routeRiskArr[i + 1])
-    console.log(`分段 ${i + 1}: [${startIdx}-${endIdx}], risk1=${risk1}, risk2=${risk2}`)
+    // 获取头尾风险值，使用分段索引 i，添加越界检查
+    const risk1 = getRiskVal(routeRiskArr[i] || null)
+    const risk2 = getRiskVal(routeRiskArr[i + 1] || null)
     
     // 计算起点和终点的颜色
     const startColor = getColorByRisk(risk1)
     const endColor = getColorByRisk(risk2)
     
     // 将路径分成多个小段进行渐变
-    const segmentCount = Math.min(20, segPath.length - 1) // 最多20个小段
+    const segmentCount = Math.max(2, Math.min(20, segPath.length - 1)) // 至少2小段，最多20个
     for (let j = 0; j < segmentCount; j++) {
       const subStartIdx = Math.floor(j * (segPath.length - 1) / segmentCount)
       const subEndIdx = Math.floor((j + 1) * (segPath.length - 1) / segmentCount)
       const subPath = segPath.slice(subStartIdx, subEndIdx + 1)
       
       // 计算当前小段在整段中的位置比例
-      const ratio = j / (segmentCount - 1)
+      const ratio = segmentCount > 1 ? j / (segmentCount - 1) : 0
       const currentColor = interpolateColor(startColor, endColor, ratio)
       
       // 画小段
