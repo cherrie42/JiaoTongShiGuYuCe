@@ -581,9 +581,9 @@ class CorePredictionService {
   generateOverallSuggestion(avgRisk, maxRisk, vehicleType) {
     let suggestion = '';
 
-    if (maxRisk > 0.8) {
+    if (maxRisk > 0.4) {
       suggestion += '路线存在高风险路段，';
-    } else if (avgRisk > 0.6) {
+    } else if (avgRisk > 0.) {
       suggestion += '路线整体风险较高，';
     } else {
       suggestion += '路线整体风险较低，';

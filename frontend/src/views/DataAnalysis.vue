@@ -281,21 +281,27 @@ function drawAllRoutesOnMap(selectedIdx = 0) {
     const endColor = getColorByRisk(risk2)
     
     // 将路径分成多个小段进行渐变
-    const segmentCount = Math.max(2, Math.min(20, segPath.length - 1)) // 至少2小段，最多20个
+    const segmentCount = Math.max(5, Math.min(30, segPath.length - 1)) // 增加分段数量，至少5小段，最多30个
     for (let j = 0; j < segmentCount; j++) {
-      const subStartIdx = Math.floor(j * (segPath.length - 1) / segmentCount)
-      const subEndIdx = Math.floor((j + 1) * (segPath.length - 1) / segmentCount)
-      const subPath = segPath.slice(subStartIdx, subEndIdx + 1)
+      const subStartIdx = Math.floor(j * (segPath.length -1) / segmentCount)
+      const subEndIdx = Math.floor((j + 1) * (segPath.length -1) / segmentCount)
+      // 增加重叠区域，让相邻段之间有连续性
+      const overlap = Math.max(2, Math.floor((subEndIdx - subStartIdx) * 0.3)) // 增加重叠比例
+      const actualStartIdx = Math.max(0, subStartIdx - (j > 0 ? overlap : 0))
+      const actualEndIdx = Math.min(segPath.length -1, subEndIdx + (j < segmentCount - 1 ? overlap : 0))
+      const subPath = segPath.slice(actualStartIdx, actualEndIdx + 1)
       
-      // 计算当前小段在整段中的位置比例
+      // 计算当前小段在整段中的位置比例，使用更平滑的插值
       const ratio = segmentCount > 1 ? j / (segmentCount - 1) : 0
-      const currentColor = interpolateColor(startColor, endColor, ratio)
+      // 使用更平滑的插值函数
+      const smoothRatio = ratio * ratio * (3- 2 * ratio) // 平滑插值
+      const currentColor = interpolateColor(startColor, endColor, smoothRatio)
       
       // 画小段
       const polyline = new window.AMap.Polyline({
         path: subPath,
         strokeColor: currentColor,
-        strokeWeight: 7,
+        strokeWeight:7,
         strokeOpacity: 0.95, // 加透明度让路线更亮
         isOutline: true,
         outlineColor: '#ffeeff',
