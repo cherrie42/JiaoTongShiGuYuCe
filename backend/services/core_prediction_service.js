@@ -959,7 +959,7 @@ class CorePredictionService {
           let risk = riskRes.success ? riskRes.probability : null;
           let crashType = riskRes.success ? riskRes.crashType : null;
           risk = this.adjustRiskByWeather(risk, weatherInfos[index]);
-          risk = risk * (0.75 + Math.random() * 1);
+          risk = risk * (0.5 + Math.random() * 0.75);
           return { risk, crashType };
         })();
         this.nodeRiskCache.set(cacheKey, riskPromise);
