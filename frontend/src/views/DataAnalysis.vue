@@ -223,6 +223,51 @@ function drawAllRoutesOnMap(selectedIdx = 0) {
     if (typeof p.risk === 'object' && p.risk && typeof p.risk.risk === 'number') return p.risk.risk
     return 0
   }
+  
+  // 根据风险值计算颜色
+  function getColorByRisk(risk) {
+    if (risk <= 0.2) return '#4AF50' // 绿色
+    if (risk >= 0.4) return '#F44336' // 红色
+    // 0.2渐变
+    const ratio = (risk - 0.2) / (0.4 - 0.2)
+    const r = Math.round(76 + (244 - 76) * ratio) //76>244
+    const g = Math.round(175 + (67 - 175) * ratio) //175->67
+    const b = Math.round(80 + (54 - 80) * ratio) //8054
+    return `rgb(${r}, ${g}, ${b})`
+  }
+  
+  // 颜色插值函数
+  function interpolateColor(color1, color2, ratio) {
+    // 解析颜色
+    const parseColor = (color) => {
+      if (color.startsWith('#')) {
+        const hex = color.slice(1)
+        return {
+          r: parseInt(hex.slice(0, 2), 16),
+          g: parseInt(hex.slice(2, 4), 16),
+          b: parseInt(hex.slice(4, 6), 16)
+        }
+      } else if (color.startsWith('rgb')) {
+        const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/)
+        return {
+          r: parseInt(match[1]),
+          g: parseInt(match[2]),
+          b: parseInt(match[3])
+        }
+      }
+      return { r: 0, g: 0, b: 0  }
+    }
+    
+    const c1 = parseColor(color1)
+    const c2 = parseColor(color2)
+    
+    const r = Math.round(c1.r + (c2.r - c1.r) * ratio)
+    const g = Math.round(c1.g + (c2.g - c1.g) * ratio)
+    const b = Math.round(c1.b + (c2.b - c1.b) * ratio)
+    
+    return `rgb(${r}, ${g}, ${b})`
+  }
+  
   for (let i = 0; i < segIdxArr.length - 1; i++) {
     const startIdx = segIdxArr[i]
     const endIdx = segIdxArr[i + 1]
@@ -230,24 +275,38 @@ function drawAllRoutesOnMap(selectedIdx = 0) {
     // 获取头尾风险值，使用分段索引 i
     const risk1 = getRiskVal(routeRiskArr[i])
     const risk2 = getRiskVal(routeRiskArr[i + 1])
-    const avgRisk = (risk1 + risk2) / 2
-    console.log(`分段 ${i + 1}: [${startIdx}-${endIdx}], risk1=${risk1}, risk2=${risk2}, avgRisk=${avgRisk.toFixed(3)}`)
-    let color = '#FFD600' // yellow
-    if (avgRisk > 0.3) color = '#F56C6C' // red
-    else if (avgRisk > 0.2) color = '#FF9800' // orange
-    // 画分段
-    const polyline = new window.AMap.Polyline({
-      path: segPath,
-      strokeColor: color,
-      strokeWeight: 7,
-      isOutline: true,
-      outlineColor: '#ffeeff',
-      borderWeight: 2,
-      lineJoin: 'round',
-      zIndex: 100
-    })
-    polyline.setMap(map)
-    polylines.push(polyline)
+    console.log(`分段 ${i + 1}: [${startIdx}-${endIdx}], risk1=${risk1}, risk2=${risk2}`)
+    
+    // 计算起点和终点的颜色
+    const startColor = getColorByRisk(risk1)
+    const endColor = getColorByRisk(risk2)
+    
+    // 将路径分成多个小段进行渐变
+    const segmentCount = Math.min(20, segPath.length - 1) // 最多20个小段
+    for (let j = 0; j < segmentCount; j++) {
+      const subStartIdx = Math.floor(j * (segPath.length - 1) / segmentCount)
+      const subEndIdx = Math.floor((j + 1) * (segPath.length - 1) / segmentCount)
+      const subPath = segPath.slice(subStartIdx, subEndIdx + 1)
+      
+      // 计算当前小段在整段中的位置比例
+      const ratio = j / (segmentCount - 1)
+      const currentColor = interpolateColor(startColor, endColor, ratio)
+      
+      // 画小段
+      const polyline = new window.AMap.Polyline({
+        path: subPath,
+        strokeColor: currentColor,
+        strokeWeight: 7,
+        strokeOpacity: 0.95, // 加透明度让路线更亮
+        isOutline: true,
+        outlineColor: '#ffeeff',
+        borderWeight: 2,
+        lineJoin: 'round',
+        zIndex: 100
+      })
+      polyline.setMap(map)
+      polylines.push(polyline)
+    }
   }
 
   // 标记当前选中路线的关键节点
