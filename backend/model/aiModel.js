@@ -33,7 +33,8 @@ class TrafficAccidentPredictor {
       'OTHER OBJECT': '其他物体碰撞',
       'ANIMAL': '动物碰撞',
       'UNKNOWN': '未知类型',
-      'TURNING': '转弯碰撞'
+      'TURNING': '转弯碰撞',
+      'SIDESWIPE SAME DIRECTION': '同向侧擦碰撞',
     };
   }
 
@@ -176,8 +177,18 @@ class TrafficAccidentPredictor {
           verbose: 0
         }
       );
-      const loss = h.history.loss[0];
-      const val_loss = h.history.val_loss[0];
+      const accidentProbLoss = h.history.accident_prob_loss ? h.history.accident_prob_loss[0] : 0;
+      const crashTypeLoss = h.history.crash_type_loss ? h.history.crash_type_loss[0] : 0;
+      const valAccidentProbLoss = h.history.val_accident_prob_loss ? h.history.val_accident_prob_loss[0] : 0;
+      const valCrashTypeLoss = h.history.val_crash_type_loss ? h.history.val_crash_type_loss[0] : 0;
+      const totalLoss = accidentProbLoss + crashTypeLoss;
+      const totalValLoss = valAccidentProbLoss + valCrashTypeLoss;
+      if (epoch % 5 === 0 || epoch === 1) {
+        console.log(`第${epoch}轮 -> 总损失: ${totalLoss.toFixed(4)}, 验证总损失: ${totalValLoss.toFixed(4)}`);
+        console.log(`  事故概率损失: 训练=${accidentProbLoss.toFixed(4)}, 验证=${valAccidentProbLoss.toFixed(4)}`);
+        console.log(`  碰撞类型损失: 训练=${crashTypeLoss.toFixed(4)}, 验证=${valCrashTypeLoss.toFixed(4)}`);
+      }
+      
       // 手动计算验证集事故概率准确率
       const [valPredAccidentProb, valPredCrashType] = this.model.predict(valFeatures);
       // 事故概率准确率
@@ -197,15 +208,14 @@ class TrafficAccidentPredictor {
       }
       const manualAccCrash = correctCrash / yTrueCrash.length;
       if (epoch % 5 === 0 || epoch === 1) {
-        console.log(`第${epoch}轮 -> 损失: ${loss.toFixed(4)}, 验证损失: ${val_loss.toFixed(4)}`);
         console.log(`[手动] 验证事故概率acc: ${manualAccAccident.toFixed(4)}, 验证碰撞类型acc: ${manualAccCrash.toFixed(4)}`);
       }
-      if (val_loss < bestValLoss) {
-        bestValLoss = val_loss;
+      if (totalValLoss < bestValLoss) {
+        bestValLoss = totalValLoss;
         bestWeights = this.model.getWeights().map(w => w.clone());
         wait = 0;
         reduceLrWait = 0;
-        console.log(`[ModelCheckpoint] 验证损失达到新低，已保存最佳模型 (val_loss=${val_loss.toFixed(4)})`);
+        console.log(`[ModelCheckpoint] 验证损失达到新低，已保存最佳模型 (val_loss=${totalValLoss.toFixed(4)})`);
       } else {
         wait++;
         reduceLrWait++;
