@@ -99,11 +99,39 @@
           <template #header>
             <span>高风险路段</span>
           </template>
-          <el-table :data="highRiskPoints" height="250">
-            <el-table-column prop="risk" label="风险值" width="80" />
-            <el-table-column prop="crashType" label="事故类型" width="120" />
-            <el-table-column prop="description" label="说明" />
-            <el-table-column prop="suggestion" label="建议" />
+          <el-table :data="highRiskPoints" height="250" style="font-size:13px;">
+            <el-table-column
+              prop="name"
+              label="地点"
+              min-width="120"
+              :formatter="row => row.name || '-'"
+            />
+            <el-table-column
+              prop="risk"
+              label="风险值"
+              width="90"
+              align="center"
+              :formatter="row => row.risk !== undefined ? Number(row.risk).toFixed(3) : '-'"
+            />
+            <el-table-column
+              prop="crashType"
+              label="事故类型"
+              width="100"
+              align="center"
+              :formatter="row => row.crashType || '-'"
+            />
+            <el-table-column
+              prop="description"
+              label="说明"
+              min-width="120"
+              :formatter="row => row.description || '-'"
+            />
+            <el-table-column
+              prop="suggestion"
+              label="建议"
+              min-width="120"
+              :formatter="row => row.suggestion || '-'"
+            />
           </el-table>
         </el-card>
 
@@ -544,5 +572,9 @@ onMounted(() => {
   margin-bottom: 18px;
   display: flex;
   align-items: center;
+}
+.el-table .cell {
+  white-space: pre-line;
+  word-break: break-all;
 }
 </style>

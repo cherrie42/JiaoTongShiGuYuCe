@@ -534,21 +534,35 @@ class CorePredictionService {
   }
 
   /**
-   * 根据风险值生成风险描述
-   * @param {number} risk - 风险值
+   * 根据节点生成风险描述
+   * @param {object} node - 节点对象，需包含 risk 和 alignment 字段
    * @returns {string} 风险描述
    */
-  generateRiskDescription(risk) {
-    if (risk > 0.4) {
-      return '极高风险路段 - 急转弯 + 恶劣天气 + 路况极差';
-    } else if (risk > 0.33) {
-      return '高风险路段 - 急转弯 + 路况不佳 + 视线不良';
-    } else if (risk > 0.23) {
-      return '中高风险路段 - 弯道较多 + 路面湿滑';
-    } else if (risk > 0.2) {
-      return '中等风险路段 - 车流量较大 + 路况一般';
+  generateRiskDescription(node) {
+    const risk = node.risk;
+    const alignment = node.alignment || '';
+    let curveDesc = '';
+    if (alignment.includes('CURVE')) {
+      if (alignment.includes('LEVEL')) {
+        curveDesc = '急转弯';
+      } else if (alignment.includes('GRADE')) {
+        curveDesc = '弯道坡道';
+      } else {
+        curveDesc = '弯道路段';
+      }
     } else {
-      return '低风险路段 - 路况良好 + 视线清晰';
+      curveDesc = '直道路段';
+    }
+    if (risk > 0.4) {
+      return `极高风险路段 - ${curveDesc} + 恶劣天气 + 路况极差`;
+    } else if (risk > 0.33) {
+      return `高风险路段 - ${curveDesc} + 路况不佳 + 视线不良`;
+    } else if (risk > 0.23) {
+      return `中高风险路段 - ${curveDesc} + 路面湿滑`;
+    } else if (risk > 0.2) {
+      return `中等风险路段 - ${curveDesc} + 车流量较大 + 路况一般`;
+    } else {
+      return `低风险路段 - ${curveDesc} + 路况良好 + 视线清晰`;
     }
   }
 
@@ -959,7 +973,7 @@ class CorePredictionService {
           let risk = riskRes.success ? riskRes.probability : null;
           let crashType = riskRes.success ? riskRes.crashType : null;
           risk = this.adjustRiskByWeather(risk, weatherInfos[index]);
-          risk = risk * (0.5 + Math.random() * 0.75);
+          risk = risk * (0.8 + Math.random() * 0.7);
           return { risk, crashType };
         })();
         this.nodeRiskCache.set(cacheKey, riskPromise);
@@ -1046,7 +1060,8 @@ class CorePredictionService {
           if (risk >= 0.31) {
             highRiskPoints.push({
               adcode, lng, lat, risk, crashType,
-              description: this.generateRiskDescription(risk),
+              name: cityInfo.name, // 新增地名字段
+              description: this.generateRiskDescription(node),
               suggestion: this.generateRiskSuggestion(risk)
             });
           }
